@@ -1,5 +1,4 @@
 from typing import Union
-
 import torch
 
 def mask_tensor(

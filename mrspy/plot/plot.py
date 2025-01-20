@@ -1,17 +1,18 @@
 import numpy as np
 import matplotlib.pyplot as plt
-import typing
+from typing import Optional, Union, List
 from math import ceil
 import os
 from mrspy.util import load_mrs_mat
 import torch
+import warnings
 
 class SpecPlotter:
-    def __init__(self, data: typing.Optional[np.ndarray] = None):
+    def __init__(self, data: Optional[np.ndarray] = None):
         self.data = data
 
     @classmethod
-    def from_tensor(cls, tensor: typing.Union[np.ndarray, "torch.Tensor"]):
+    def from_tensor(cls, tensor: Union[np.ndarray, "torch.Tensor"]):
         if torch and isinstance(tensor, torch.Tensor):
             tensor = tensor.numpy()
         elif not isinstance(tensor, np.ndarray):
@@ -28,23 +29,49 @@ class SpecPlotter:
         data = load_mrs_mat(path)
         return cls(data=data)
 
-    def time(self, idx: int = 0, saved_plot=None, **kwargs):
+    def time(self, idx: int = 0, path=None, saved_plot=None, **kwargs):
+        """
+        Plot time-series data from a 3D array and save the plot if a path is specified.
+
+        Parameters:
+        - idx (int): Index to select a 3D array from self.data.
+        - path (str, optional): Path to save the plot.
+        - saved_plot (str, optional): Deprecated; use `path` instead.
+        - **kwargs: Additional arguments for `plt.savefig`.
+
+        Returns:
+        - None
+        """
+        # Deprecation warning
+        if saved_plot:
+            warnings.warn(
+                "The 'saved_plot' parameter is deprecated and will be removed in a future version. "
+                "Please use 'path' instead.",
+                DeprecationWarning,
+                stacklevel=2
+            )
+            # Use saved_plot if path is not provided
+            path = path or saved_plot
+
         # temp is of shape (120, 32, 32)
         temp = self.data[idx]
-        
+
         # Create a figure
         plt.figure(figsize=(10, 6))
-        
+
         for i in range(temp.shape[1]):
             for j in range(temp.shape[2]):
                 plt.plot(temp[:, i, j])
+
         plt.tight_layout()
-        if(saved_plot):
-            plt.savefig(saved_plot, **kwargs)
+
+        if path:
+            plt.savefig(path, **kwargs)
+
         plt.show()
 
 
-def plot_chemicalshift_image(data: np.ndarray, chemicalshift: typing.List[int]=[67, 61, 49], cmap: str = 'hot', path="./", dpi=600):
+def plot_chemicalshift_image(data: np.ndarray, chemicalshift: List[int]=[67, 61, 49], cmap: str = 'hot', path="./", dpi=600, order: List[str]=None):
     """
     Plots images for chemical shifts from the provided tensor data.
 
@@ -73,5 +100,8 @@ def plot_chemicalshift_image(data: np.ndarray, chemicalshift: typing.List[int]=[
             axes[i].axis('off')
 
         plt.tight_layout()
-        plt.savefig(f'{path}/plot_{ichem}.jpg', dpi=dpi)
+        if(order is not None):
+            plt.savefig(f'{path}/{order[ichem]}.jpg', dpi=dpi)
+        else:
+            plt.savefig(f'{path}/plot_{ichem}.jpg', dpi=dpi)
         plt.close(fig)
