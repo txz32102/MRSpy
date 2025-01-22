@@ -48,10 +48,10 @@ savemat(f"{log_dir}/simulated.mat", {"gt": ground_truth.numpy()})
 
 Visualization results for `simulated.mat` can be viewed using MATLAB, available in the `demo` folder.
 
-![Glutamate Ground Truth](./MRSpy/demo/fig/glu_gt.png)
+![Glutamate Ground Truth](./demo/fig/glu_gt.png)
 
-![Water Ground Truth](./MRSpy/demo/fig/water_gt.png)
+![Water Ground Truth](./demo/fig/water_gt.png)
 
-![Lactate Ground Truth](./MRSpy/demo/fig/lac_gt.png)
+![Lactate Ground Truth](./demo/fig/lac_gt.png)
 
-![Spectroscopy Ground Truth](./MRSpy/demo/fig/spectroscopy_plot_gt.png)
+![Spectroscopy Ground Truth](./demo/fig/spectroscopy_plot_gt.png)
