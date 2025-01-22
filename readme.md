@@ -46,6 +46,12 @@ ground_truth = torch.abs(spec_imag) / torch.max(torch.abs(spec_imag))
 savemat(f"{log_dir}/simulated.mat", {"gt": ground_truth.numpy()})
 ```
 
+## install
+
+```bash
+pip install git+https://github.com/txz32102/MRSpy.git@main
+```
+
 Visualization results for `simulated.mat` can be viewed using MATLAB, available in the `demo` folder.
 
 ![Glutamate Ground Truth](./demo/fig/glu_gt.png)
