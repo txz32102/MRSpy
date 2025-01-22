@@ -11,10 +11,14 @@ setup(
     ],
     python_requires=">=3.6",
     install_requires=[
-        # Add dependencies here, e.g., "numpy", "matplotlib"
+        "numpy>=1.21.0",
+        "torch>=1.13.0",
+        "matplotlib>=3.4.0",
+        "h5py",
+        "scipy"
     ],
     include_package_data=True, 
     package_data={
-        "mrspy": ["data/*.mat"],  # Specify the relative path to your data
+        "mrspy": ["data/*.mat"],
     },
 )
