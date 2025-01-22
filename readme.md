@@ -55,3 +55,10 @@ Visualization results for `simulated.mat` can be viewed using MATLAB, available 
 ![Lactate Ground Truth](./demo/fig/lac_gt.png)
 
 ![Spectroscopy Ground Truth](./demo/fig/spectroscopy_plot_gt.png)
+
+
+## install
+
+```bash
+pip install git+https://github.com/txz32102/MRSpy.git@0.1.0
+```
