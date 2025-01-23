@@ -117,7 +117,7 @@ sim = Simulation(target_size=target_size, cfg=cfg)
 # we will have res["gt"], res["no"], res["wei"], res["wei_no], each of shape 32, 120, 32, 32
 res = sim.simulation(water_img=water_img, glu_img=glu_img, lac_img=lac_img)
 end_time = time.time()
-print(f"Total time taken by GPU: {end_time - start_time:.2f} seconds")
+print(f"Total time taken by CPU: {end_time - start_time:.2f} seconds")
 
 saved_dir = "/home/data1/musong/workspace/2025/1/1-22/log/mat_data"
 os.makedirs(saved_dir, exist_ok=True)
