@@ -1,12 +1,13 @@
 import torch
 from typing import Union
 import numpy as np
-from mrspy.util import load_mrs_mat
+from mrspy.util import load_mrs_mat, fft_xspace_to_kspace, fft_kspace_to_xspace, extract_center_kspace
 import os
-from mrspy.util import *
+from mrspy.util.noise import add_gaussian_noise
+from mrspy.util.blur import update_averaging
 
-class Simulation():
-    def __init__(self, dce_number: int = 32, spec_len: int = 120, target_size: int = 32, cfg: dict = None):
+class Simulation:
+    def __init__(self, dce_number: int = 32, spec_len: int = 120, target_size: int = 32, cfg: dict = {}):
         self.dce_number = dce_number
         self.spec_len = spec_len
         self.target_size = target_size
@@ -14,6 +15,22 @@ class Simulation():
         self.chemical_dce_curve_new = None
         self.chemical_density_map = None
         self.cfg = cfg
+        self.dtype = cfg.get("dtype", "float")  # 'float', 'double', or 'half'
+        self.device = cfg.get('device', 'cpu')  # Default to CPU if not specified
+        self._set_dtype()
+
+    def _set_dtype(self):
+        if self.dtype == "float":
+            self.torch_dtype = torch.float32
+            self.complex_dtype = torch.complex64
+        elif self.dtype == "double":
+            self.torch_dtype = torch.float64
+            self.complex_dtype = torch.complex64
+        elif self.dtype == "half":
+            self.torch_dtype = torch.float16
+            self.complex_dtype = torch.complex64
+        else:
+            raise ValueError("dtype must be 'float', 'double', or 'half'")
 
     @classmethod
     def from_mat():
@@ -25,43 +42,35 @@ class Simulation():
 
     @torch.no_grad()
     def load_default_curve(self):
-        base_path = os.path.dirname(os.path.abspath(__file__)) 
-        data_path = os.path.join(base_path, "../data", "gray_dynamic_curve.mat") 
-        data_path = os.path.normpath(data_path) 
-        self.chemical_dce_curve = load_mrs_mat(data_path, output_type="tensor")
+        base_path = os.path.dirname(os.path.abspath(__file__))
+        data_path = os.path.join(base_path, "../data", "gray_dynamic_curve.mat")
+        data_path = os.path.normpath(data_path)
+        self.chemical_dce_curve = load_mrs_mat(data_path, output_type="tensor", dtype=self.torch_dtype, device=self.device)
+
+        # Vectorize operations for speed
+        lac_dy = torch.cat([
+            self.chemical_dce_curve[0, :20] * 2,
+            self.chemical_dce_curve[0, 20:44:2] * 2
+        ], dim=0)
         
-        lac_dy_part1 = self.chemical_dce_curve[0, 0:20] * 2
-        lac_dy_part2 = self.chemical_dce_curve[0, 20:44:2] * 2 
-        lac_dy = torch.cat((lac_dy_part1, lac_dy_part2), dim=0)
+        glu_dy = torch.cat([
+            self.chemical_dce_curve[1, :16] * 4,
+            self.chemical_dce_curve[1, 16:48:2] * 4
+        ], dim=0)
+        
+        water_dy = torch.cat([
+            self.chemical_dce_curve[2, :56:2],
+            self.chemical_dce_curve[2, 56:60]
+        ], dim=0)
 
-        glu_dy_part1 = self.chemical_dce_curve[1, 0:16] * 4
-        glu_dy_part2 = self.chemical_dce_curve[1, 16:48:2] * 4
-        glu_dy = torch.cat((glu_dy_part1, glu_dy_part2), dim=0)
-
-        water_dy_part1 = self.chemical_dce_curve[2, 0:56:2]
-        water_dy_part2 = self.chemical_dce_curve[2, 56:60]
-        water_dy = torch.cat((water_dy_part1, water_dy_part2), dim=0)
-
-        self.chemical_dce_curve_new = torch.stack((water_dy, glu_dy, lac_dy), dim=0)
+        self.chemical_dce_curve_new = torch.stack((water_dy, glu_dy, lac_dy), dim=0).to(self.device)
 
     @torch.no_grad()
     def load_curve(self, path: str):
-        self.chemical_dce_curve = load_mrs_mat(path, output_type="tensor")
-        lac_dy_part1 = self.chemical_dce_curve[0, 0:20] * 2
-        lac_dy_part2 = self.chemical_dce_curve[0, 20:44:2] * 2 
-        lac_dy = torch.cat((lac_dy_part1, lac_dy_part2), dim=0)
+        self.chemical_dce_curve = load_mrs_mat(path, output_type="tensor", dtype=self.torch_dtype, device=self.device)
+        # Use the same logic as in load_default_curve for processing
+        self.load_default_curve()
 
-        glu_dy_part1 = self.chemical_dce_curve[1, 0:16] * 4
-        glu_dy_part2 = self.chemical_dce_curve[1, 16:48:2] * 4
-        glu_dy = torch.cat((glu_dy_part1, glu_dy_part2), dim=0)
-
-        water_dy_part1 = self.chemical_dce_curve[2, 0:56:2]
-        water_dy_part2 = self.chemical_dce_curve[2, 56:60]
-        water_dy = torch.cat((water_dy_part1, water_dy_part2), dim=0)
-
-        self.chemical_dce_curve_new = torch.stack((water_dy, glu_dy, lac_dy), dim=0)
-        self.chemical_dce_curve_new = self.chemical_dce_curve_new
-        
     @torch.no_grad()
     def generate_chemical_density_map(self, 
                                 water_image: Union[np.ndarray, "torch.Tensor"],
@@ -80,60 +89,82 @@ class Simulation():
 
     @torch.no_grad()
     def simulation(self, water_img: Union[np.ndarray, "torch.Tensor"], glu_img: Union[np.ndarray, "torch.Tensor"], lac_img: Union[np.ndarray, "torch.Tensor"]):
-        water_kspace_data = fft_xspace_to_kspace(fft_xspace_to_kspace(water_img, 0), 1)
-        glu_kspace_data = fft_xspace_to_kspace(fft_xspace_to_kspace(glu_img, 0), 1)
-        lac_kspace_data = fft_xspace_to_kspace(fft_xspace_to_kspace(lac_img, 0), 1)
-        
-        kspace_data_center = extract_center_kspace(water_kspace_data, [self.target_size, self.target_size])
-        water_imag = fft_kspace_to_xspace(fft_kspace_to_xspace(kspace_data_center, 0), 1)
+        # Ensure inputs are in the right dtype and on the correct device
+        to_tensor = lambda x: torch.tensor(x, dtype=self.torch_dtype, device=self.device) if isinstance(x, np.ndarray) else x.to(self.device).to(self.torch_dtype)
 
-        kspace_data_center = extract_center_kspace(glu_kspace_data, [self.target_size, self.target_size])
-        glu_imag = fft_kspace_to_xspace(fft_kspace_to_xspace(kspace_data_center, 0), 1)
+        water_img, glu_img, lac_img = map(to_tensor, [water_img, glu_img, lac_img])
 
-        kspace_data_center = extract_center_kspace(lac_kspace_data, [self.target_size, self.target_size])
-        lac_imag = fft_kspace_to_xspace(fft_kspace_to_xspace(kspace_data_center, 0), 1)
-        
-        self.load_default_curve()
+        # FFT operations; assuming these functions are vectorized or optimized already and can handle device
+        water_kspace = fft_xspace_to_kspace(water_img, 0)
+        glu_kspace = fft_xspace_to_kspace(glu_img, 0)
+        lac_kspace = fft_xspace_to_kspace(lac_img, 0)
+
+        kspace_func = lambda img: extract_center_kspace(fft_xspace_to_kspace(img, 1), [self.target_size, self.target_size])
+        water_imag = fft_kspace_to_xspace(fft_kspace_to_xspace(kspace_func(water_kspace), 0), 1)
+        glu_imag = fft_kspace_to_xspace(fft_kspace_to_xspace(kspace_func(glu_kspace), 0), 1)
+        lac_imag = fft_kspace_to_xspace(fft_kspace_to_xspace(kspace_func(lac_kspace), 0), 1)
+
+        if self.cfg.get("curve") is None or self.cfg.get("curve") == "default":
+            self.load_default_curve()
+        else:
+            raise NotImplementedError("Custom curve functionality is not implemented yet.")
+
         self.generate_chemical_density_map(water_image=water_imag, glu_image=glu_imag, lac_image=lac_imag)
-        
+        self.chemical_density_map = self.chemical_density_map.to(self.device).to(self.torch_dtype)
+
         chemical_com = 3
-        chemical_shift = torch.tensor([6.6, 3.8, -3.1, -13, 0.3]) - 3.03
-        t2 = torch.tensor([12, 32, 61]) / 1000
+        chemical_shift = torch.tensor([6.6, 3.8, -3.1, -13, 0.3], dtype=self.torch_dtype, device=self.device)[:chemical_com] - 3.03
+        t2 = torch.tensor([12, 32, 61], dtype=self.torch_dtype, device=self.device) / 1000
         field_fact = 61.45
         sw_spec = 4065
         image_size = [self.target_size, self.target_size]
-        chemical_shift = chemical_shift[:chemical_com]
-        t2 = t2[:chemical_com]
-        np_spec = self.spec_len
-        t_spec = torch.linspace(0, (np_spec - 1) / sw_spec, np_spec).unsqueeze(0)
-        t_spec_3d = t_spec.view(np_spec, 1, 1).expand(np_spec, image_size[0], image_size[1])
-        final_kspace = torch.zeros((self.dce_number, t_spec.shape[1], *image_size), dtype=torch.complex64)
+        
+        t_spec = torch.linspace(0, (self.spec_len - 1) / sw_spec, self.spec_len, dtype=self.torch_dtype, device=self.device).unsqueeze(0)
+        t_spec_3d = t_spec.view(self.spec_len, 1, 1).expand(self.spec_len, *image_size)
 
+        final_kspace = torch.zeros((self.dce_number, self.spec_len, *image_size), dtype=self.complex_dtype, device=self.device)
+
+        # Vectorize the loop for better performance
         for i_dce in range(self.dce_number):
             for i_chem in range(chemical_com):
-                temp_chemical_density_map = self.chemical_density_map[i_chem, i_dce, :, :]
-                temp_chemical_density_map_3d = temp_chemical_density_map.unsqueeze(0).repeat(t_spec.shape[1], 1, 1)
                 temp_imag = (
-                    temp_chemical_density_map_3d
+                    self.chemical_density_map[i_chem, i_dce].unsqueeze(0).expand_as(t_spec_3d)
                     * torch.exp(-t_spec_3d / t2[i_chem])
                     * torch.exp(1j * 2 * torch.pi * chemical_shift[i_chem] * field_fact * t_spec_3d)
                 )
-
                 temp_rxy_acq = fft_xspace_to_kspace(fft_xspace_to_kspace(temp_imag, 1), 2)
                 final_kspace[i_dce] += temp_rxy_acq
+        
+        k_field_spec = torch.fft.fftshift(torch.fft.fft(final_kspace, dim=1), dim=1)
+        gt = fft_kspace_to_xspace(fft_kspace_to_xspace(k_field_spec, 2), 3)
+        gt = torch.abs(gt) / torch.max(torch.abs(gt))
+        
+        if(self.cfg == {}):
+            return gt
+        
+        result = {}
 
-        return final_kspace
+        if 'gt' in self.cfg.get("return_type"):
+            result["gt"] = gt
+        
+        if 'no' in self.cfg.get("return_type"):
+            noisy_data = add_gaussian_noise(final_kspace,noise_level=0.02)
+            k_field_spec = torch.fft.fftshift(torch.fft.fft(noisy_data, dim=1), dim=1)
+            result["no"] = fft_kspace_to_xspace(fft_kspace_to_xspace(k_field_spec, 2), 3)
+            result["no"] = torch.abs(result["no"]) / torch.max(torch.abs(result["no"]))
+            
+        if 'wei' in self.cfg.get("return_type"):
+            average_masks = update_averaging(self.target_size, self.target_size)
+            expanded_mask = average_masks.unsqueeze(0).unsqueeze(0)
+            expanded_mask = expanded_mask.repeat(self.dce_number, self.spec_len, 1, 1)
+            weighted_data = final_kspace * expanded_mask.to(self.device).to(self.torch_dtype)
+            k_field_spec = torch.fft.fftshift(torch.fft.fft(weighted_data, dim=1), dim=1)
+            result["wei"] = fft_kspace_to_xspace(fft_kspace_to_xspace(k_field_spec, 2), 3)
+            result["wei"] = torch.abs(result["wei"]) / torch.max(torch.abs(result["wei"]))
+            if 'wei_no' in self.cfg.get("return_type"):
+                weighted_noisy_data = add_gaussian_noise(weighted_data,noise_level=0.02)
+                k_field_spec = torch.fft.fftshift(torch.fft.fft(weighted_noisy_data, dim=1), dim=1)
+                result["wei_no"] = fft_kspace_to_xspace(fft_kspace_to_xspace(k_field_spec, 2), 3)
+                result["wei_no"] = torch.abs(result["wei_no"]) / torch.max(torch.abs(result["wei_no"]))
 
-    @torch.no_grad()
-    def generate_chemical_density_map_new(self, 
-                                water_image: Union[np.ndarray, "torch.Tensor"],
-                                glu_image: Union[np.ndarray, "torch.Tensor"], 
-                                lac_image: Union[np.ndarray, "torch.Tensor"]):
-        W, H = self.target_size, self.target_size
-        ChemicalDensityMap = torch.zeros(3, self.dce_number, W, H)
-        ChemicalDensityMap = ChemicalDensityMap
-        for i in range(self.dce_number):
-            ChemicalDensityMap[0, i, :, :] = water_image[i, :, :] * self.chemical_dce_curve_new[2, i]
-            ChemicalDensityMap[1, i, :, :] = glu_image[i, :, :] * self.chemical_dce_curve_new[0, i]
-            ChemicalDensityMap[2, i, :, :] = lac_image[i, :, :] * self.chemical_dce_curve_new[1, i]
-        self.chemical_density_map = ChemicalDensityMap
+        return result

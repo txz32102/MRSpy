@@ -1,50 +1,133 @@
 ## A python library use torch intended to make the MRS simulation faster
 
-Basic usage
+Basic usage of GPU
 
 ```python
-import torch
-from mrspy.util import load_mrs_mat
-from mrspy.sim import Simulation
-from mrspy.util import fft_kspace_to_xspace
+from mrspy.util.check import *
+from mrspy.util import *
+from mrspy.plot import *
+from mrspy.sim import *
 import os
 from scipy.io import savemat
+import numpy as np
+import time
 
-# Define the directory paths
 demo_folder = "/home/data1/data/dmi_si_hum/data_metimg/row0_IXI255-HH-1882-T1"
-log_dir = "/home/data1/musong/workspace/2025/1/1-22/log"
-os.makedirs(log_dir, exist_ok=True)  # Create log directory if it doesn't exist
 
-# Load water image data (256x256 tensor)
-water_img_path = os.path.join(demo_folder, "WaterImag.mat")
-water_img = load_mrs_mat(water_img_path, output_type="tensor")
+water_img = os.path.join(demo_folder, "WaterImag.mat")
+water_img = load_mrs_mat(water_img, output_type="tensor")
+water_img = water_img.double()
 
-# Load glutamate image data (256x256 tensor)
-glu_img_path = os.path.join(demo_folder, "GluImag.mat")
-glu_img = load_mrs_mat(glu_img_path, output_type="tensor")
+glu_img = os.path.join(demo_folder, "GluImag.mat")
+glu_img = load_mrs_mat(glu_img, output_type="tensor")
+glu_img = glu_img.double()
 
-# Load lactate image data (256x256 tensor)
-lac_img_path = os.path.join(demo_folder, "LacImag.mat")
-lac_img = load_mrs_mat(lac_img_path, output_type="tensor")
+lac_img = os.path.join(demo_folder, "LacImag.mat")
+lac_img = load_mrs_mat(lac_img, output_type="tensor")
+lac_img = lac_img.double()
 
+cfg = {
+    "curve": "default",
+    "device": "cuda:0",
+    "return_type": {
+        "gt",
+        "no",
+        "wei",
+        "wei_no"},
+    "wei_no": {
+        "noise level": 0.02
+    },
+    "no": {
+        "noise level": 0.02
+    },
+    "wei": {
+        "average": 263
+    },
+    "return_dict" : True
+}
+
+start_time = time.time()
 target_size = 32
-# Perform the simulation
-sim = Simulation(target_size=target_size)  # Initialize the simulation object
-final_kspace = sim.simulation(water_img=water_img, glu_img=glu_img, lac_img=lac_img)
+sim = Simulation(target_size=target_size, cfg=cfg)
 
-# Convert k-space data back to image space
-# Apply Fourier transform along the second dimension (frequency -> spatial domain)
-k_field_spec = torch.fft.fftshift(torch.fft.fft(final_kspace, dim=1), dim=1)
+# we will have res["gt"], res["no"], res["wei"], res["wei_no], each of shape 32, 120, 32, 32
+res = sim.simulation(water_img=water_img, glu_img=glu_img, lac_img=lac_img)
+end_time = time.time()
+print(f"Total time taken by GPU: {end_time - start_time:.2f} seconds")
 
-# Convert k-space data to spatial image space across the second and third dimensions
-spec_imag = fft_kspace_to_xspace(fft_kspace_to_xspace(k_field_spec, 2), 3)
+saved_dir = "/home/data1/musong/workspace/2025/1/1-22/log/mat_data"
+os.makedirs(saved_dir, exist_ok=True)
 
-# Normalize the output image to the range [0, 1]
-ground_truth = torch.abs(spec_imag) / torch.max(torch.abs(spec_imag))
-
-# Save the simulated data to a .mat file
-savemat(f"{log_dir}/simulated.mat", {"gt": ground_truth.numpy()})
+for key, value in res.items():
+    value = np.array(value.detach().cpu())
+    value_float16 = value.astype(np.float16)
+    savemat(f"{saved_dir}/{key}.mat", {key: value_float16})
 ```
+
+Basic usage of CPU
+
+```python
+from mrspy.util.check import *
+from mrspy.util import *
+from mrspy.plot import *
+from mrspy.sim import *
+import os
+from scipy.io import savemat
+import numpy as np
+import time
+
+demo_folder = "/home/data1/data/dmi_si_hum/data_metimg/row0_IXI255-HH-1882-T1"
+
+water_img = os.path.join(demo_folder, "WaterImag.mat")
+water_img = load_mrs_mat(water_img, output_type="tensor")
+water_img = water_img.double()
+
+glu_img = os.path.join(demo_folder, "GluImag.mat")
+glu_img = load_mrs_mat(glu_img, output_type="tensor")
+glu_img = glu_img.double()
+
+lac_img = os.path.join(demo_folder, "LacImag.mat")
+lac_img = load_mrs_mat(lac_img, output_type="tensor")
+lac_img = lac_img.double()
+
+cfg = {
+    "curve": "default",
+    "device": "cpu",
+    "return_type": {
+        "gt",
+        "no",
+        "wei",
+        "wei_no"},
+    "wei_no": {
+        "noise level": 0.02
+    },
+    "no": {
+        "noise level": 0.02
+    },
+    "wei": {
+        "average": 263
+    },
+    "return_dict" : True
+}
+
+start_time = time.time()
+target_size = 32
+sim = Simulation(target_size=target_size, cfg=cfg)
+
+# we will have res["gt"], res["no"], res["wei"], res["wei_no], each of shape 32, 120, 32, 32
+res = sim.simulation(water_img=water_img, glu_img=glu_img, lac_img=lac_img)
+end_time = time.time()
+print(f"Total time taken by GPU: {end_time - start_time:.2f} seconds")
+
+saved_dir = "/home/data1/musong/workspace/2025/1/1-22/log/mat_data"
+os.makedirs(saved_dir, exist_ok=True)
+
+for key, value in res.items():
+    value = np.array(value.detach().cpu())
+    value_float16 = value.astype(np.float16)
+    savemat(f"{saved_dir}/{key}.mat", {key: value_float16})
+```
+
 
 ## install
 

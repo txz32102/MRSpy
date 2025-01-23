@@ -5,7 +5,6 @@ from math import ceil
 import os
 from mrspy.util import load_mrs_mat
 import torch
-import warnings
 
 class SpecPlotter:
     def __init__(self, data: Optional[np.ndarray] = None):
@@ -29,7 +28,7 @@ class SpecPlotter:
         data = load_mrs_mat(path)
         return cls(data=data)
 
-    def time(self, idx: int = 0, path=None, saved_plot=None, **kwargs):
+    def spec_plot(self, idx: int = 0, path=None, plot_all=False, **kwargs, ):
         """
         Plot time-series data from a 3D array and save the plot if a path is specified.
 
@@ -42,33 +41,45 @@ class SpecPlotter:
         Returns:
         - None
         """
-        # Deprecation warning
-        if saved_plot:
-            warnings.warn(
-                "The 'saved_plot' parameter is deprecated and will be removed in a future version. "
-                "Please use 'path' instead.",
-                DeprecationWarning,
-                stacklevel=2
-            )
-            # Use saved_plot if path is not provided
-            path = path or saved_plot
+        if plot_all == True:
+            n_plots = self.data.shape[0]
+            
+            m = int(np.ceil(np.sqrt(n_plots)))
+            n = int(np.ceil(n_plots / m))
+            
+            fig, axs = plt.subplots(m, n, figsize=(n * 2, m * 2))
+            axs = axs.ravel()
+            
+            for idx, data in enumerate(self.data):
+                if idx >= n_plots:
+                    break
+                axs[idx].plot(data.ravel())
+            
+            for i in range(idx + 1, len(axs)):
+                fig.delaxes(axs[i])
+            
+            plt.tight_layout()
+            
+            if path:
+                plt.savefig(path, **kwargs)
+            
+            plt.show()
+        else:
+            temp = self.data[idx]
 
-        # temp is of shape (120, 32, 32)
-        temp = self.data[idx]
+            # Create a figure
+            plt.figure(figsize=(10, 6))
 
-        # Create a figure
-        plt.figure(figsize=(10, 6))
+            for i in range(temp.shape[1]):
+                for j in range(temp.shape[2]):
+                    plt.plot(temp[:, i, j])
 
-        for i in range(temp.shape[1]):
-            for j in range(temp.shape[2]):
-                plt.plot(temp[:, i, j])
+            plt.tight_layout()
 
-        plt.tight_layout()
+            if path:
+                plt.savefig(path, **kwargs)
 
-        if path:
-            plt.savefig(path, **kwargs)
-
-        plt.show()
+            plt.show()
 
 
 def plot_chemicalshift_image(data: np.ndarray, chemicalshift: List[int]=[67, 61, 49], cmap: str = 'hot', path="./", dpi=600, order: List[str]=None):
