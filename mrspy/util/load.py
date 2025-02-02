@@ -17,7 +17,7 @@ def load_mrs_mat(
     file_path: str,
     variable_index: int = -1,
     output_type: str = "numpy",
-    dtype: Union[str, torch.dtype] = torch.float32,
+    dtype: Union[str, np.dtype, torch.dtype] = torch.float32,
     device: str = "cpu",
 ) -> Union[np.ndarray, torch.Tensor]:
     """
@@ -29,7 +29,8 @@ def load_mrs_mat(
         file_path (str): Path to the .mat file.
         variable_index (int): Index of the variable to load. Default is -1 (last variable).
         output_type (str): Output type, either 'numpy' or 'tensor' (for PyTorch). Default is 'numpy'.
-        dtype (Union[str, torch.dtype]): Desired data type for the output. Default is torch.float32.
+        dtype (Union[str, np.dtype, torch.dtype]): Desired data type for the output. Can be a string like 'torch.float32'
+                                                   or 'numpy.float32', or a dtype object. Default is torch.float32.
         device (str): Device to load the data onto if output_type is 'tensor'. Default is 'cpu'.
 
     Returns:
@@ -38,6 +39,15 @@ def load_mrs_mat(
     Raises:
         ValueError: If output_type is not 'numpy' or 'tensor'.
     """
+    # Map string dtypes to appropriate numpy or torch dtypes
+    if isinstance(dtype, str):
+        if dtype.startswith("torch."):
+            dtype = getattr(torch, dtype.split(".")[1])
+        elif dtype.startswith("numpy."):
+            dtype = getattr(np, dtype.split(".")[1])
+        else:
+            raise ValueError(f"Invalid dtype string: {dtype}")
+
     try:
         # First attempt with scipy.io
         mat_contents = sio.loadmat(file_path)
@@ -50,11 +60,9 @@ def load_mrs_mat(
             data = f[variable_name][:]
             permute_order = tuple(reversed(range(data.ndim)))
             data = np.transpose(data, permute_order)
-    
+
     # Convert the data to the specified type and device
     if output_type == "tensor":
-        if isinstance(dtype, str):
-            dtype = getattr(torch, dtype)  # Convert string to torch.dtype
         tensor = torch.tensor(data, dtype=dtype, device=device)
         return tensor
     elif output_type == "numpy":

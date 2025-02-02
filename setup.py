@@ -12,7 +12,7 @@ setup(
     python_requires=">=3.6",
     install_requires=[
         "numpy>=1.21.0",
-        "torch>=1.13.0",
+        "torch>=1.10.0",
         "matplotlib>=3.4.0",
         "h5py",
         "scipy"

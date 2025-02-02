@@ -54,6 +54,7 @@ class SpecPlotter:
                 if idx >= n_plots:
                     break
                 axs[idx].plot(data.ravel())
+                axs[idx].axis('off') 
             
             for i in range(idx + 1, len(axs)):
                 fig.delaxes(axs[i])
