@@ -43,8 +43,16 @@ def load_mrs_mat(
     if isinstance(dtype, str):
         if dtype.startswith("torch."):
             dtype = getattr(torch, dtype.split(".")[1])
-        elif dtype.startswith("numpy."):
+        elif dtype.startswith("numpy.") or dtype.startswith("np."):
             dtype = getattr(np, dtype.split(".")[1])
+        elif dtype in ["float32", "float64"]:
+            # Assuming output_type is provided as either "numpy" or "tensor"
+            if output_type == "numpy":
+                dtype = getattr(np, dtype)
+            elif output_type == "tensor":
+                dtype = getattr(torch, dtype)
+            else:
+                raise ValueError(f"Invalid output_type: {output_type}")
         else:
             raise ValueError(f"Invalid dtype string: {dtype}")
 
