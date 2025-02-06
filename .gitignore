@@ -1,3 +1,6 @@
 mrspy.egg-info
 dist
 tests
+mrspy/plot/__pycache__
+mrspy/__pycache__
+mrspy/util/__pycache__
