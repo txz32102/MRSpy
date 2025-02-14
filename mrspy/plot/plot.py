@@ -117,3 +117,37 @@ def plot_chemicalshift_image(data: np.ndarray, chemicalshift: List[int]=[67, 61,
         else:
             plt.savefig(f'{path}/plot_{ichem}.jpg', dpi=dpi)
         plt.close(fig)
+
+def plot(
+    data: Union[np.ndarray, torch.Tensor], 
+    axis: Optional[str] = None, 
+    path: Optional[str] = None, 
+    dpi: int = 100
+) -> None:
+    """
+    Plots a numpy array or a torch tensor as an image.
+
+    Parameters:
+    - data: numpy array or torch tensor (CPU/GPU, with or without gradients), shape (w, h)
+    - axis: 'none' to hide axes, any other value to show them (default: None)
+    - path: optional path to save the figure (default: None)
+    - dpi: resolution of the saved figure (default: 100)
+    """
+    if isinstance(data, torch.Tensor):
+        data = data.detach().cpu().numpy()  # Move to CPU and detach if necessary
+    
+    if data.ndim != 2:
+        raise ValueError("Input data must have shape (w, h)")
+    
+    plt.figure()
+    plt.imshow(data, cmap='gray')
+    
+    if axis == 'none':
+        plt.axis('off')
+    
+    if path:
+        plt.savefig(path, dpi=dpi, bbox_inches='tight', pad_inches=0)
+    else:
+        plt.show()
+    
+    plt.close()
