@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="mrspy",
-    version="0.2.1",
+    version="0.2.2",
     packages=find_packages(),
     classifiers=[
         "Programming Language :: Python :: 3",
@@ -16,6 +16,8 @@ setup(
         "matplotlib>=3.4.0",
         "h5py",
         "scipy"
+        "opencv-python",
+        "nibabel"
     ],
     include_package_data=True, 
     package_data={

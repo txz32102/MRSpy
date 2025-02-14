@@ -132,7 +132,7 @@ for key, value in res.items():
 ## install
 
 ```bash
-pip install git+https://github.com/txz32102/MRSpy.git@0.2.2
+pip install git+https://github.com/txz32102/MRSpy.git@main
 ```
 
 Visualization results for `simulated.mat` can be viewed using MATLAB, available in the `demo` folder.

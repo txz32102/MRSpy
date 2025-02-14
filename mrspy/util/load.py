@@ -3,6 +3,7 @@ import scipy.io as sio
 import numpy as np
 import torch
 import h5py
+import cv2
 
 def load_toy_data(batch_size: int = None, DceNum: int = 32, spec_len: int = 120, image_size: int = 32, reshape: bool = False) -> torch.Tensor:
     if(batch_size is not None):
@@ -77,3 +78,47 @@ def load_mrs_mat(
         return np.array(data, dtype=dtype)
     else:
         raise ValueError("output_type must be either 'numpy' or 'tensor'")
+    
+def load_img(file_path: str, output_type: str = "numpy", dtype: Union[str, np.dtype, torch.dtype] = np.float32, device: str = "cpu"):
+    """
+    Load a grayscale image from a file path and return it as a NumPy array or PyTorch tensor.
+
+    Args:
+        file_path (str): The path to the image file.
+        output_type (str, optional): The type of output. Can be "numpy" or "tensor". Defaults to "numpy".
+        dtype (Union[str, np.dtype, torch.dtype], optional): The data type of the output. Can be a string, NumPy dtype, or PyTorch dtype. Defaults to np.float32.
+        device (str, optional): The device to place the tensor if output_type is "tensor". Defaults to "cpu".
+
+    Returns:
+        Union[np.ndarray, torch.Tensor]: The loaded grayscale image as a NumPy array or PyTorch tensor.
+    """
+    # Load the grayscale image using OpenCV
+    img = cv2.imread(file_path, cv2.IMREAD_GRAYSCALE)
+    if img is None:
+        raise FileNotFoundError(f"Failed to load image from {file_path}")
+
+    # Handle dtype conversion
+    if isinstance(dtype, str):
+        if dtype.startswith("torch."):
+            dtype = getattr(torch, dtype.split(".")[1])
+        elif dtype.startswith("numpy.") or dtype.startswith("np."):
+            dtype = getattr(np, dtype.split(".")[1])
+        elif dtype in ["float32", "float64"]:
+            if output_type == "numpy":
+                dtype = getattr(np, dtype)
+            elif output_type == "tensor":
+                dtype = getattr(torch, dtype)
+            else:
+                raise ValueError(f"Invalid output_type: {output_type}")
+        else:
+            raise ValueError(f"Invalid dtype string: {dtype}")
+
+    # Convert to desired output type
+    if output_type == "numpy":
+        img = img.astype(dtype)
+    elif output_type == "tensor":
+        img = torch.tensor(img, dtype=dtype, device=device)
+    else:
+        raise ValueError(f"Invalid output_type: {output_type}")
+
+    return img
