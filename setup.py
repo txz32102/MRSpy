@@ -15,7 +15,7 @@ setup(
         "torch>=1.10.0",
         "matplotlib>=3.4.0",
         "h5py",
-        "scipy"
+        "scipy",
         "opencv-python",
         "nibabel"
     ],
