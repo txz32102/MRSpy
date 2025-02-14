@@ -195,7 +195,7 @@ class datapipeline():
                 cv2.imwrite(os.path.join(slice_folder, f"lac.{output_type}"), lac_data)
 
     
-    def plot(self, slice_dim=None, idx=0, cmap='hot'):
+    def plot(self, slice_dim=None, idx=0, cmap='hot', save_path=None, dpi=100):
         if slice_dim is None:
             slice_dim = self.slice_dim
 
@@ -225,6 +225,8 @@ class datapipeline():
         axes[2].set_title('Lac')
         
         cbar = plt.colorbar(im2, ax=axes, orientation='vertical')
-
         fig.subplots_adjust(right=0.75) 
+        if save_path:
+            plt.savefig(save_path, dpi=dpi)
+
         plt.show()
