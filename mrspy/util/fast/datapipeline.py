@@ -1,39 +1,3 @@
-""" 
-2025-2-13 demo example, see /home/data1/musong/workspace/2025/2/2-13/load_data_from_fast.ipynb
-
-import sys
-sys.path.append("/home/data1/musong/workspace/2025/2/MRSpy")
-from mrspy.util.fast.datapipeline import datapipeline 
-from mrspy.plot import plot
-
-CSF_file_path = "/home/data1/musong/data/IXI/T1/fast/IXI216-HH-1635-T1/IXI216-HH-1635-T1_pve_0.nii.gz"
-GM_file_path = "/home/data1/musong/data/IXI/T1/fast/IXI216-HH-1635-T1/IXI216-HH-1635-T1_pve_1.nii.gz"
-WM_file_path = "/home/data1/musong/data/IXI/T1/fast/IXI216-HH-1635-T1/IXI216-HH-1635-T1_pve_2.nii.gz"
-
-weight_dict={
-    "CSF": [0.1, 0.3, 0.6],
-    "GM": [0.3, 0.6, 0.2],
-    "WM": [0.6, 0.1, 0],
-}
-
-size=(128, 128)
-pipeline = datapipeline(CSF_file_path=CSF_file_path, 
-                        GM_file_path=GM_file_path, 
-                        WM_file_path=WM_file_path, 
-                        weight_dict=weight_dict, 
-                        size=size, 
-                        pad=0.3, 
-                        pad_axis="x")
-
-pipeline.process()
-water = pipeline.water
-print(water.shape)
-pipeline.plot(idx=157, cmap="jet")
-
-pipeline.save(output_path="/home/data1/musong/workspace/2025/2/2-13/temp")
-pipeline.save(output_path="/home/data1/musong/workspace/2025/2/2-13/temp", output_type="png")
-"""
-
 import nibabel as nib
 import cv2
 import numpy as np
@@ -125,15 +89,17 @@ class datapipeline():
         slice_dim = self.slice_dim
         original_shape = arr.shape
         w, h = self.size
-        resized_arr = np.zeros((original_shape[0], w, h), dtype=arr.dtype)
         
         if slice_dim == 0:
+            resized_arr = np.zeros((original_shape[0], w, h), dtype=arr.dtype)
             for i in range(original_shape[0]):
                 resized_arr[i, :, :] = cv2.resize(arr[i, :, :], (h, w))
         elif slice_dim == 1:
+            resized_arr = np.zeros((w, original_shape[0], h), dtype=arr.dtype)
             for i in range(original_shape[1]):
                 resized_arr[:, i, :] = cv2.resize(arr[:, i, :], (h, w))
         elif slice_dim == 2:
+            resized_arr = np.zeros((w, h, original_shape[0]), dtype=arr.dtype)
             for i in range(original_shape[2]):
                 resized_arr[:, :, i] = cv2.resize(arr[:, :, i], (h, w))
         else:
