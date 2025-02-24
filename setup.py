@@ -17,7 +17,8 @@ setup(
         "h5py",
         "scipy",
         "opencv-python",
-        "nibabel"
+        "nibabel",
+        "pillow"
     ],
     include_package_data=True, 
     package_data={
