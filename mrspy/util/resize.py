@@ -82,3 +82,34 @@ def resize_image(img: torch.Tensor, target_size: int) -> torch.Tensor:
     resized_img = resized_img.squeeze(0).squeeze(0)  # Shape becomes (target_size, target_size)
 
     return resized_img
+
+def resize_image_batch(img: torch.Tensor, target_size: int) -> torch.Tensor:
+    """
+    Resize batched 2D image tensors to the target size (target_size, target_size).
+
+    Args:
+        img (Tensor): Input image tensor of shape (B, H, W), where B is batch size.
+        target_size (int): The target size for both height and width.
+
+    Returns:
+        Tensor: Resized image tensor of shape (B, target_size, target_size).
+    """
+    # Check if input has batch dimension (3D tensor)
+    if img.dim() != 3:
+        raise ValueError("Input image tensor must be 3D (B, H, W) for batched grayscale images.")
+
+    # Add channel dimension to match interpolate's expected input (B, C, H, W)
+    img = img.unsqueeze(1)  # Shape becomes (B, 1, H, W)
+
+    # Resize to target size (target_size, target_size)
+    resized_img = torch.nn.functional.interpolate(
+        img, 
+        size=(target_size, target_size), 
+        mode='bilinear', 
+        align_corners=False
+    )
+
+    # Remove the channel dimension
+    resized_img = resized_img.squeeze(1)  # Shape becomes (B, target_size, target_size)
+
+    return resized_img
