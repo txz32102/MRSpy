@@ -1,7 +1,7 @@
 import torch
 from typing import Union
 import numpy as np
-from mrspy.util import load_mrs_mat, fft_xspace_to_kspace, fft_kspace_to_xspace, extract_center_kspace, fft_xspace_to_kspace_3d_batch, fft_kspace_to_xspace_3d_batch
+from mrspy.util import load_mrs_mat, fft_xspace_to_kspace, fft_kspace_to_xspace, resize_image, fft_xspace_to_kspace_3d_batch, fft_kspace_to_xspace_3d_batch
 import os
 from mrspy.util.noise import add_gaussian_noise
 from mrspy.util.blur import update_averaging
@@ -94,6 +94,9 @@ class Simulation:
 
         water_img, glu_img, lac_img = map(to_tensor, [water_img, glu_img, lac_img])
 
+        """
+        this is the old resize method that was used to do the resize in the kspace, we can simply did this in image domain, no need for kspace 
+
         # FFT operations; assuming these functions are vectorized or optimized already and can handle device
         water_kspace = fft_xspace_to_kspace(water_img, 0)
         glu_kspace = fft_xspace_to_kspace(glu_img, 0)
@@ -103,6 +106,18 @@ class Simulation:
         water_imag = fft_kspace_to_xspace(fft_kspace_to_xspace(kspace_func(water_kspace), 0), 1)
         glu_imag = fft_kspace_to_xspace(fft_kspace_to_xspace(kspace_func(glu_kspace), 0), 1)
         lac_imag = fft_kspace_to_xspace(fft_kspace_to_xspace(kspace_func(lac_kspace), 0), 1)
+        """
+        water_img = resize_image(water_img, self.target_size)
+        glu_img = resize_image(glu_img, self.target_size)
+        lac_img = resize_image(lac_img, self.target_size)
+
+        water_kspace = fft_xspace_to_kspace(fft_xspace_to_kspace(water_img, 0), 1)
+        glu_kspace = fft_xspace_to_kspace(fft_xspace_to_kspace(glu_img, 0), 1)
+        lac_kspace = fft_xspace_to_kspace(fft_xspace_to_kspace(lac_img, 0), 1)
+
+        water_imag = fft_kspace_to_xspace(fft_kspace_to_xspace(water_kspace, 0), 1)
+        glu_imag = fft_kspace_to_xspace(fft_kspace_to_xspace(glu_kspace, 0), 1)
+        lac_imag = fft_kspace_to_xspace(fft_kspace_to_xspace(lac_kspace, 0), 1)
 
         if self.cfg.get("curve") is None or self.cfg.get("curve") == "default":
             self.load_default_curve()

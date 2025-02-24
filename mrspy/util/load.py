@@ -18,7 +18,7 @@ def load_mrs_mat(
     file_path: str,
     variable_index: int = -1,
     output_type: str = "numpy",
-    dtype: Union[str, np.dtype, torch.dtype] = torch.float32,
+    dtype: Union[str, np.dtype, torch.dtype] = "float32",
     device: str = "cpu",
 ) -> Union[np.ndarray, torch.Tensor]:
     """

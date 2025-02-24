@@ -56,3 +56,29 @@ def extract_center_kspace(data: torch.Tensor, kspace_size: list, is_3d: bool = F
 
         # Extract and return the central region
         return data[row_start:row_end, col_start:col_end]
+
+def resize_image(img: torch.Tensor, target_size: int) -> torch.Tensor:
+    """
+    Resize the input 2D image tensor to the target size (target_size, target_size).
+
+    Args:
+        img (Tensor): Input image tensor of shape (height, width).
+        target_size (int): The target size for both height and width.
+
+    Returns:
+        Tensor: Resized image tensor of shape (target_size, target_size).
+    """
+    # Ensure the input is a 2D tensor
+    if img.dim() != 2:
+        raise ValueError("Input image tensor must be 2D (height, width).")
+
+    # Add batch and channel dimensions to match the expected input of interpolate
+    img = img.unsqueeze(0).unsqueeze(0)  # Shape becomes (1, 1, height, width)
+
+    # Resize to target size (target_size, target_size)
+    resized_img = torch.nn.functional.interpolate(img, size=(target_size, target_size), mode='bilinear', align_corners=False)
+
+    # Remove the added batch and channel dimensions
+    resized_img = resized_img.squeeze(0).squeeze(0)  # Shape becomes (target_size, target_size)
+
+    return resized_img
