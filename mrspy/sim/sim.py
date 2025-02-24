@@ -1,7 +1,7 @@
 import torch
 from typing import Union
 import numpy as np
-from mrspy.util import load_mrs_mat, fft_xspace_to_kspace, fft_kspace_to_xspace, resize_image, fft_xspace_to_kspace_3d_batch, fft_kspace_to_xspace_3d_batch
+from mrspy.util import load_mrs_mat, fft_xspace_to_kspace, fft_kspace_to_xspace, resize_image, resize_image_batch, fft_xspace_to_kspace_3d_batch, fft_kspace_to_xspace_3d_batch
 import os
 from mrspy.util.noise import add_gaussian_noise
 from mrspy.util.blur import update_averaging
@@ -219,22 +219,9 @@ class BatchSimulation(Simulation):
         # Convert inputs to tensor and move to device
         to_tensor = lambda x: torch.tensor(x, dtype=self.torch_dtype, device=self.device) if isinstance(x, np.ndarray) else x.to(self.device).to(self.torch_dtype)
         water_img, glu_img, lac_img = map(to_tensor, [water_img, glu_img, lac_img])
-
-        # Batch FFT operations
-        kspace_func = lambda img: extract_center_kspace(
-            fft_xspace_to_kspace_3d_batch(img, 1), 
-            [self.target_size, self.target_size],
-            True
-        )
-        
-        def process_kspace(img):
-            kspace = fft_xspace_to_kspace_3d_batch(img, 0)  # (B, H, W)
-            cropped = kspace_func(kspace)  # (B, target_size, target_size)
-            return fft_kspace_to_xspace_3d_batch(fft_kspace_to_xspace_3d_batch(cropped, 0), 1)  # (B, target_size, target_size)
-
-        water_imag = process_kspace(water_img)
-        glu_imag = process_kspace(glu_img)
-        lac_imag = process_kspace(lac_img)
+        water_img = resize_image_batch(water_img, self.target_size)
+        glu_img = resize_image_batch(glu_img, self.target_size)
+        lac_img = resize_image_batch(lac_img, self.target_size)
 
         # Load curves (same as parent class)
         if self.cfg.get("curve") is None or self.cfg.get("curve") == "default":
@@ -243,9 +230,9 @@ class BatchSimulation(Simulation):
             raise NotImplementedError("Custom curve functionality is not implemented yet.")
 
         # Generate density maps with batch support
-        self.generate_chemical_density_map(water_image=water_imag, 
-                                         glu_image=glu_imag, 
-                                         lac_image=lac_imag)
+        self.generate_chemical_density_map(water_image=water_img, 
+                                         glu_image=glu_img, 
+                                         lac_image=lac_img)
 
         # Simulation parameters
         chemical_com = 3
