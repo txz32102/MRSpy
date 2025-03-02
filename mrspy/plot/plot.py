@@ -27,61 +27,255 @@ class SpecPlotter:
             raise FileNotFoundError(f"The file at path {path} does not exist.")
         data = load_mrs_mat(path)
         return cls(data=data)
-
-    def spec_plot(self, idx: int = 0, path=None, plot_all=False, **kwargs, ):
+    
+    def get_chemical_shifts(self, n: int = 3):
         """
-        Plot time-series data from a 3D array and save the plot if a path is specified.
+        For each dynamic t, extract the top n indices of the highest values from the summed spectra.
+        
+        :param n: Number of top indices to extract (default is 3)
+        :return: A 2D array with shape (t, n) containing the top n indices for each dynamic.
+        """
+        # Get the shape of the data
+        t, l, h, w = self.data.shape
+        
+        # Initialize an empty array to store the summed spectra with shape (t, l)
+        summed_spectra = np.zeros((t, l))
+        
+        # Iterate over each dynamic t
+        for i in range(t):
+            # Reshape the data for the current dynamic to (l, h*w) and sum along the last axis
+            # This will give the summed spectrum for the current dynamic
+            summed_spectra[i] = np.sum(self.data[i].reshape(l, h * w), axis=1)
+        
+        # Initialize an array to store the top n indices for each dynamic
+        top_indices = np.zeros((t, n), dtype=int)
+        
+        # Iterate over each summed spectrum to find the top n indices
+        for i in range(t):
+            # Get the indices of the top n values in descending order
+            top_indices[i] = np.argsort(summed_spectra[i])[-n:][::-1]
+        
+        return top_indices
+    
+    
+    def spec_plot(self, 
+                  idx: int = 0, 
+                  path=None, 
+                  plot_all=False, 
+                  xy=None, 
+                  show_xy: bool = False,
+                  annotate_top_n: bool = False,  # New parameter
+                  n_dots: int = 3,  # Number of top points to annotate
+                  title=None, xlabel=None, 
+                  ylabel=None, 
+                  xticks=None, 
+                  **kwargs):
+        """
+        Plot time-series data from a 4D array (assuming self.data is that array) and save the plot if a path is specified.
+
+        Data shape assumed: (num_subplots, num_dots, num_lines_dim1, num_lines_dim2) which is (26, 64, 32, 32) in your case.
+        Plots 32x32 lines in each subplot, with each line having 64 dots.
 
         Parameters:
-        - idx (int): Index to select a 3D array from self.data.
+        - idx (int): Index to select a subplot (from the first dimension of self.data) when plot_all=False.
         - path (str, optional): Path to save the plot.
-        - saved_plot (str, optional): Deprecated; use `path` instead.
+        - plot_all (bool): Plot all subplots as subplots in a single figure if True.
+        - xy (tuple, optional): Grid size (m, n) for subplots when plot_all=True.
+        - show_xy (bool): Show x-axis and y-axis values on each subplot (default: False).
+        - annotate_top_n (bool): If True, annotate the top n maximum values on each subplot with dashed lines.
+        - n (int): Number of top maximum values to annotate (default: 3).
+        - title (str, optional): Title of the plot. Defaults to 'Subplot {subplot_index + 1}' or 'Subplot {idx + 1}'.
+        - xlabel (str, optional): Label for the x-axis. Defaults to 'X-axis (0 to 64)'.
+        - ylabel (str, optional): Label for the y-axis. Defaults to 'Y-axis'.
+        - xticks (list or array-like, optional): X-axis tick positions. Defaults to range(0, 65, 5).
         - **kwargs: Additional arguments for `plt.savefig`.
-
-        Returns:
-        - None
         """
-        if plot_all == True:
-            n_plots = self.data.shape[0]
-            
-            m = int(np.ceil(np.sqrt(n_plots)))
-            n = int(np.ceil(n_plots / m))
-            
-            fig, axs = plt.subplots(m, n, figsize=(n * 2, m * 2))
+        data_array = self.data
+
+        if plot_all:
+            n_subplots = data_array.shape[0]
+            if xy is None:
+                m = int(np.ceil(np.sqrt(n_subplots)))
+                n = int(np.ceil(n_subplots / m))
+            else:
+                m, n = xy
+                if m * n < n_subplots:
+                    raise ValueError("The provided grid size (m, n) is too small for the input data.")
+
+            fig, axs = plt.subplots(m, n, figsize=(n * 5, m * 4))
             axs = axs.ravel()
-            
-            for idx, data in enumerate(self.data):
-                if idx >= n_plots:
-                    break
-                axs[idx].plot(data.ravel())
-                axs[idx].axis('off') 
-            
-            for i in range(idx + 1, len(axs)):
+
+            for subplot_index in range(n_subplots):
+                ax = axs[subplot_index]
+
+                # Plot all lines
+                for line_dim1_index in range(data_array.shape[2]):  # 32 lines dimension 1
+                    for line_dim2_index in range(data_array.shape[3]):  # 32 lines dimension 2
+                        y_values = data_array[subplot_index, :, line_dim1_index, line_dim2_index]
+                        x_values = range(data_array.shape[1])  # 64 dots
+                        ax.plot(x_values, y_values, linewidth=0.5, alpha=0.5)
+
+                    if annotate_top_n:
+                        # Sum along lines dimensions to get the summed spectrum
+                        summed_spectrum = np.sum(data_array[subplot_index], axis=(1, 2))
+                        # Get top n indices
+                        top_n_indices = np.argsort(summed_spectrum)[-n_dots:][::-1]
+
+                        # For each top n index, find the maximum y-value among all lines at that index
+                        for idx in top_n_indices:
+                            # Get the maximum y-value at the current index across all lines
+                            max_y_value = np.max(data_array[subplot_index, idx])
+                            # Mark x position with a vertical dashed line
+                            ax.axvline(x=idx, color='r', linestyle='--', linewidth=1)
+                            # Mark y position with a horizontal dashed line
+                            ax.axhline(y=max_y_value, color='r', linestyle='--', linewidth=1)
+
+                # Use provided titles/labels or defaults
+                ax_title = title if title is not None else f'Subplot {subplot_index + 1}'
+                ax_xlabel = xlabel if xlabel is not None else f'X-axis (0 to {self.data.shape[1]})'
+                ax_ylabel = ylabel if ylabel is not None else 'Y-axis'
+                ax_xticks = xticks if xticks is not None else range(0, self.data.shape[1], 5)
+
+                ax.set_title(ax_title)
+                ax.set_xlabel(ax_xlabel)
+                ax.set_ylabel(ax_ylabel)
+                ax.set_xticks(ax_xticks)
+                ax.grid(True, linestyle='--', alpha=0.6)
+
+                if not show_xy:
+                    ax.axis('off')  # Turn off axes if show_xy is False
+
+            # Remove any unused subplots if grid is larger than needed
+            for i in range(n_subplots, len(axs)):
                 fig.delaxes(axs[i])
-            
-            plt.tight_layout()
-            
-            if path:
-                plt.savefig(path, **kwargs)
-            
-            plt.show()
-        else:
-            temp = self.data[idx]
-
-            # Create a figure
-            plt.figure(figsize=(10, 6))
-
-            for i in range(temp.shape[1]):
-                for j in range(temp.shape[2]):
-                    plt.plot(temp[:, i, j])
 
             plt.tight_layout()
-
             if path:
                 plt.savefig(path, **kwargs)
-
             plt.show()
 
+        else:  # plot_all is False, plot a single subplot
+            temp_data = data_array[idx]  # Select single subplot data
+            fig, ax = plt.subplots(figsize=(10, 8))  # Create figure and axis objects
+
+            # Plot all lines
+            for line_dim1_index in range(temp_data.shape[1]):  # 32 lines in dimension 1
+                for line_dim2_index in range(temp_data.shape[2]):  # 32 lines in dimension 2
+                    y_values = temp_data[:, line_dim1_index, line_dim2_index]
+                    x_values = range(temp_data.shape[0])  # 64 dots
+                    ax.plot(x_values, y_values, linewidth=0.5, alpha=0.5)  # Plot using ax
+
+            # Annotate top n values if required
+            if annotate_top_n:
+                summed_spectrum = np.sum(temp_data, axis=(1, 2))  # Sum along lines dimensions
+                top_n_indices = np.argsort(summed_spectrum)[-n_dots:][::-1]  # Get top n indices
+                for idx in top_n_indices:
+                    ax.axvline(x=idx, color='r', linestyle='--', linewidth=1)  # Mark x positions
+                    ax.axhline(y=summed_spectrum[idx], color='r', linestyle='--', linewidth=1)  # Mark y positions
+
+            # Use provided titles/labels or defaults
+            ax_title = title if title is not None else f'Subplot {idx + 1}'
+            ax_xlabel = xlabel if xlabel is not None else f'X-axis (0 to {self.data.shape[1]})'
+            ax_ylabel = ylabel if ylabel is not None else 'Y-axis'
+            ax_xticks = xticks if xticks is not None else range(0, self.data.shape[1], 5)
+
+            ax.set_title(ax_title)
+            ax.set_xlabel(ax_xlabel)
+            ax.set_ylabel(ax_ylabel)
+            ax.set_xticks(ax_xticks)
+            ax.grid(True, linestyle='--', alpha=0.6)
+
+            if not show_xy:
+                ax.axis('off')  # Turn off axes if show_xy is False
+
+            plt.tight_layout()
+            if path:
+                plt.savefig(path, **kwargs)
+            plt.show()
+            
+class TensorComparePlotter:
+    def __init__(self, tensor1=None, tensor2=None):
+        self.tensor1 = tensor1
+        self.tensor2 = tensor2
+
+    @classmethod
+    def from_tensors(cls, tensor1, tensor2):
+        tensor1 = cls._convert_to_numpy(tensor1)
+        tensor2 = cls._convert_to_numpy(tensor2)
+        if tensor1.shape != tensor2.shape:
+            raise ValueError("Tensors must have the same shape.")
+        return cls(tensor1, tensor2)
+
+    @classmethod
+    def from_paths(cls, path1, path2):
+        data1 = np.load(path1)  # Assuming load_mrs_mat uses np.load or similar
+        data2 = np.load(path2)
+        return cls(data1, data2)
+
+    @staticmethod
+    def _convert_to_numpy(tensor):
+        if isinstance(tensor, torch.Tensor):
+            return tensor.numpy()
+        elif isinstance(tensor, np.ndarray):
+            return tensor
+        raise TypeError("Tensors must be numpy arrays or PyTorch tensors")
+
+    def compare_plot(self, t_index=0, path=None, show_xy=True,
+                     title=None, xlabel=None, ylabel=None,
+                     xticks=None, **kwargs):
+        """
+        Plots comparative data from two tensors for a fixed 't' index.
+
+        Parameters:
+            t_index (int): Index of the time dimension to fix and plot.
+            path (str, optional): Path to save the plot.
+            show_xy (bool): Toggle axis visibility.
+            title (str): Main title for the plot.
+            xlabel (str): X-axis label.
+            ylabel (str): Y-axis label.
+            xticks (list): Custom x-axis ticks.
+            **kwargs: Additional arguments for `plt.savefig`.
+        """
+        if (t_index < 0 or t_index >= self.tensor1.shape[0] or
+            t_index >= self.tensor2.shape[0]):
+            raise IndexError("t_index out of bounds")
+
+        data1 = self.tensor1[t_index]
+        data2 = self.tensor2[t_index]
+        l = data1.shape[0]
+
+        fig, axs = plt.subplots(1, 2, figsize=(12, 6))
+        axs = axs.ravel()
+
+        common_params = {
+            'xlabel': xlabel or f'',
+            'ylabel': ylabel or '',
+            'xticks': xticks or range(0, l, max(l//10, 1) if l > 10 else 1)
+        }
+
+        for ax, title_part, data in zip(axs, ['Simulated', 'Real'], [data1, data2]):
+            for w in range(data.shape[1]):
+                for h in range(data.shape[2]):
+                    ax.plot(np.arange(l), data[:, w, h], lw=0.5, alpha=0.5)
+
+            ax.set_title(f'{title_part} Data')
+            ax.set_xlabel(common_params['xlabel'])
+            ax.set_ylabel(common_params['ylabel'])
+            ax.set_xticks(common_params['xticks'])
+            ax.grid(True, linestyle='--', alpha=0.6)
+
+            if not show_xy:
+                ax.tick_params(labelbottom=False, labelleft=False,
+                               bottom=False, left=False)
+
+        if title:
+            fig.suptitle(title)
+
+        plt.tight_layout()
+        if path:
+            plt.savefig(path, **kwargs)
+        plt.show()
+         
 def plot_chemicalshift_image(data: np.ndarray, chemicalshift: List[int] = [67, 61, 49], 
                              cbar: bool = False, cmap: str = 'hot', path="./", dpi=600, 
                              order: List[str] = None, normalize_range: bool = False, no_gap: bool = False):
@@ -146,7 +340,7 @@ def plot_chemicalshift_image(data: np.ndarray, chemicalshift: List[int] = [67, 6
         
 def plot(
     data: Union[np.ndarray, torch.Tensor], 
-    axis: Optional[str] = None, 
+    axis: Optional[str] = 'none',  # Change default to 'none'
     path: Optional[str] = None, 
     dpi: int = 100
 ) -> None:
@@ -154,23 +348,34 @@ def plot(
     Plots a numpy array or a torch tensor as an image.
 
     Parameters:
-    - data: numpy array or torch tensor (CPU/GPU, with or without gradients), shape (w, h)
-    - axis: 'none' to hide axes, any other value to show them (default: None)
+    - data: numpy array or torch tensor (CPU/GPU, with or without gradients), shape (w, h) or (w, h, c)
+    - axis: 'none' to hide axes, any other value to show them (default: 'none')
     - path: optional path to save the figure (default: None)
     - dpi: resolution of the saved figure (default: 100)
     """
     if isinstance(data, torch.Tensor):
         data = data.detach().cpu().numpy()  # Move to CPU and detach if necessary
     
-    if data.ndim != 2:
-        raise ValueError("Input data must have shape (w, h)")
+    if data.ndim == 2:
+        plt.figure()
+        plt.imshow(data, cmap='gray')
     
-    plt.figure()
-    plt.imshow(data, cmap='gray')
+    elif data.ndim == 3:
+        if data.shape[-1] == 1:
+            plt.figure()
+            plt.imshow(data[..., 0], cmap='gray')
+        else:
+            plt.figure()
+            plt.imshow(data)
     
+    else:
+        raise ValueError("Input data must have shape (w, h) or (w, h, c)")
+
     if axis == 'none':
         plt.axis('off')
-    
+    else:
+        plt.axis('on')  # Show axes for any other value, including None
+
     if path:
         plt.savefig(path, dpi=dpi, bbox_inches='tight', pad_inches=0)
     else:
@@ -178,7 +383,14 @@ def plot(
     
     plt.close()
 
-def plot_3d_array(data: Union[np.ndarray, torch.Tensor], path: str = None, save_path: str = None, dpi: int = 300, cbar: bool = False, cmap: str = 'hot'):
+def plot_3d_array(data: Union[np.ndarray, torch.Tensor], 
+                  path: str = None, 
+                  save_path: str = None, 
+                  dpi: int = 300, 
+                  cbar: bool = False, 
+                  cmap: str = 'hot', 
+                  show_xy: bool = False, 
+                  normalize_range: bool = False):
     """
     Plots a 3D array or tensor of shape (b, w, h) as a 1 * b subplot.
 
@@ -189,6 +401,8 @@ def plot_3d_array(data: Union[np.ndarray, torch.Tensor], path: str = None, save_
         dpi (int): Resolution for saving the image, default is 300.
         cbar (bool): Whether to include a color bar, default is False.
         cmap (str): Colormap to use for visualization, default is 'hot'.
+        show_xy (bool): If True, shows the x-y axis on each subplot.
+        normalize_range (bool): If True, normalizes the color scale across the entire data range.
     """
     # Use save_path if provided; otherwise, fall back to path
     save_path = save_path or path
@@ -206,12 +420,19 @@ def plot_3d_array(data: Union[np.ndarray, torch.Tensor], path: str = None, save_
     # Create a 1 × b subplot layout
     fig, axes = plt.subplots(1, b, figsize=(b * 2, 2))  # Each subplot width is 2 inches
 
+    # Determine the normalization range if needed
+    vmin, vmax = (None, None)
+    if normalize_range:
+        vmin = np.min(data)
+        vmax = np.max(data)
+
     # Iterate through each subplot and plot the data
     for i in range(b):
         # Use the specified colormap to plot each 2D array
         ax = axes[i] if b > 1 else axes  # If b=1, axes is not an array
-        im = ax.imshow(data[i], cmap=cmap) 
-        ax.axis('off')  # Turn off the axis
+        im = ax.imshow(data[i], cmap=cmap, vmin=vmin, vmax=vmax) 
+        if not show_xy:
+            ax.axis('off')  # Turn off the axis
         if cbar:
             fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04) 
 
@@ -227,7 +448,7 @@ def plot_3d_array(data: Union[np.ndarray, torch.Tensor], path: str = None, save_
 
     # Close the figure window
     plt.close(fig)
-    
+
 def plot_image_grid(
     data: Union[np.ndarray, torch.Tensor],
     cmap: Optional[str] = None,
