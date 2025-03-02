@@ -109,7 +109,7 @@ class DrawChar:
         img_np = np.array(self.image)
         img_tensor = torch.from_numpy(img_np).float()
         if len(img_tensor.shape) == 2:
-            img_tensor = img_tensor.unsqueeze(0)
+            img_tensor = img_tensor
         else:
             img_tensor = img_tensor.permute(2, 0, 1)
         
