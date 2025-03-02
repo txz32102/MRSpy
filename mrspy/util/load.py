@@ -20,25 +20,25 @@ def load_mrs_mat(
     output_type: str = "numpy",
     dtype: Union[str, np.dtype, torch.dtype] = "float32",
     device: str = "cpu",
+    abs: bool = False
 ) -> Union[np.ndarray, torch.Tensor]:
     """
     Loads a .mat file and returns the specified variable as a NumPy array or PyTorch tensor.
-
-    Tries to load with scipy.io first, and falls back to h5py if there's an error.
+    Supports complex numbers with optional absolute value computation.
 
     Args:
         file_path (str): Path to the .mat file.
         variable_index (int): Index of the variable to load. Default is -1 (last variable).
-        output_type (str): Output type, either 'numpy' or 'tensor' (for PyTorch). Default is 'numpy'.
-        dtype (Union[str, np.dtype, torch.dtype]): Desired data type for the output. Can be a string like 'torch.float32'
-                                                   or 'numpy.float32', or a dtype object. Default is torch.float32.
-        device (str): Device to load the data onto if output_type is 'tensor'. Default is 'cpu'.
+        output_type (str): Output type, either 'numpy' or 'tensor'. Default is 'numpy'.
+        dtype (Union[str, np.dtype, torch.dtype]): Desired data type. Default is 'float32'.
+        device (str): Device for PyTorch tensor if output_type is 'tensor'. Default is 'cpu'.
+        abs (bool): If True, compute absolute value for complex data. Default is False.
 
     Returns:
-        Union[np.ndarray, torch.Tensor]: The loaded data as a NumPy array or PyTorch tensor.
+        Union[np.ndarray, torch.Tensor]: Loaded data as NumPy array or PyTorch tensor.
 
     Raises:
-        ValueError: If output_type is not 'numpy' or 'tensor'.
+        ValueError: If output_type or dtype is invalid.
     """
     # Map string dtypes to appropriate numpy or torch dtypes
     if isinstance(dtype, str):
@@ -46,8 +46,7 @@ def load_mrs_mat(
             dtype = getattr(torch, dtype.split(".")[1])
         elif dtype.startswith("numpy.") or dtype.startswith("np."):
             dtype = getattr(np, dtype.split(".")[1])
-        elif dtype in ["float32", "float64"]:
-            # Assuming output_type is provided as either "numpy" or "tensor"
+        elif dtype in ["float32", "float64", "complex64", "complex128"]:
             if output_type == "numpy":
                 dtype = getattr(np, dtype)
             elif output_type == "tensor":
@@ -62,7 +61,7 @@ def load_mrs_mat(
         mat_contents = sio.loadmat(file_path)
         variable_name = list(mat_contents.keys())[variable_index]
         data = mat_contents[variable_name]
-    except Exception as e:
+    except Exception:
         # If scipy.io fails, try with h5py
         with h5py.File(file_path, 'r') as f:
             variable_name = list(f.keys())[variable_index]
@@ -70,12 +69,21 @@ def load_mrs_mat(
             permute_order = tuple(reversed(range(data.ndim)))
             data = np.transpose(data, permute_order)
 
-    # Convert the data to the specified type and device
+    # Check if data is complex and set dtype accordingly if not specified
+    if np.iscomplexobj(data) and not (dtype in [np.complex64, np.complex128, torch.complex64, torch.complex128]):
+        dtype = np.complex64 if output_type == "numpy" else torch.complex64
+
+    # Convert the data to the specified type
     if output_type == "tensor":
         tensor = torch.tensor(data, dtype=dtype, device=device)
+        if abs and torch.is_complex(tensor):
+            return torch.abs(tensor)
         return tensor
     elif output_type == "numpy":
-        return np.array(data, dtype=dtype)
+        array = np.array(data, dtype=dtype)
+        if abs and np.iscomplexobj(array):
+            return np.abs(array)
+        return array
     else:
         raise ValueError("output_type must be either 'numpy' or 'tensor'")
     
