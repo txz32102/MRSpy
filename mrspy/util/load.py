@@ -87,7 +87,7 @@ def load_mrs_mat(
     else:
         raise ValueError("output_type must be either 'numpy' or 'tensor'")
     
-def load_img(file_path: str, output_type: str = "numpy", dtype: Union[str, np.dtype, torch.dtype] = np.float32, device: str = "cpu"):
+def load_img(file_path: str, output_type: str = "numpy", dtype: Union[str, np.dtype, torch.dtype] = "float32", device: str = "cpu"):
     """
     Load a grayscale image from a file path and return it as a NumPy array or PyTorch tensor.
 
