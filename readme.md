@@ -3,10 +3,8 @@
 Basic usage of GPU
 
 ```python
-from mrspy.util.check import *
-from mrspy.util import *
-from mrspy.plot import *
-from mrspy.sim import *
+from mrspy.util import load_mrs_mat
+from mrspy.sim import Simulation
 import os
 from scipy.io import savemat
 import numpy as np
@@ -35,10 +33,10 @@ cfg = {
         "wei",
         "wei_no"},
     "wei_no": {
-        "noise level": 0.02
+        "noise_level": 0.02
     },
     "no": {
-        "noise level": 0.02
+        "noise_level": 0.02
     },
     "wei": {
         "average": 263
@@ -67,10 +65,8 @@ for key, value in res.items():
 Basic usage of CPU
 
 ```python
-from mrspy.util.check import *
-from mrspy.util import *
-from mrspy.plot import *
-from mrspy.sim import *
+from mrspy.util import load_mrs_mat
+from mrspy.sim import Simulation
 import os
 from scipy.io import savemat
 import numpy as np
@@ -99,10 +95,10 @@ cfg = {
         "wei",
         "wei_no"},
     "wei_no": {
-        "noise level": 0.02
+        "noise_level": 0.02
     },
     "no": {
-        "noise level": 0.02
+        "noise_level": 0.02
     },
     "wei": {
         "average": 263
@@ -131,10 +127,8 @@ for key, value in res.items():
 ## batch processing with GPU
 
 ```python
-from mrspy.util.check import *
-from mrspy.util import *
-from mrspy.plot import *
-from mrspy.sim import *
+from mrspy.util import load_mrs_mat
+from mrspy.sim import BatchSimulation
 import os
 from scipy.io import savemat
 import numpy as np
@@ -169,10 +163,10 @@ cfg = {
         "wei",
         "wei_no"},
     "wei_no": {
-        "noise level": 0.02
+        "noise_level": 0.02
     },
     "no": {
-        "noise level": 0.02
+        "noise_level": 0.02
     },
     "wei": {
         "average": 263
@@ -236,7 +230,7 @@ pipeline.save(output_path="/home/data1/musong/workspace/2025/2/2-13/temp", outpu
 ## install
 
 ```bash
-pip install git+https://github.com/txz32102/MRSpy.git@0.3.1
+pip install git+https://github.com/txz32102/MRSpy.git@0.3.2
 ```
 
 Visualization results for `simulated.mat` can be viewed using MATLAB, available in the `demo` folder.
