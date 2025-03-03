@@ -63,7 +63,7 @@ class SpecPlotter:
                   path=None, 
                   plot_all=False, 
                   xy=None, 
-                  show_xy: bool = False,
+                  show_xy: bool = True,
                   annotate_top_n: bool = False,  # New parameter
                   n_dots: int = 3,  # Number of top points to annotate
                   title=None, xlabel=None, 
@@ -278,7 +278,7 @@ class TensorComparePlotter:
          
 def plot_chemicalshift_image(data: np.ndarray, chemicalshift: List[int] = [67, 61, 49], 
                              cbar: bool = False, cmap: str = 'hot', path="./", dpi=600, 
-                             order: List[str] = None, normalize_range: bool = False, no_gap: bool = False):
+                             order: List[str] = None, normalize_range: bool = True, no_gap: bool = True):
     """
     Plots images for chemical shifts from the provided tensor data.
 
