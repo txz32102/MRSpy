@@ -163,7 +163,7 @@ class Simulation:
             result["gt"] = gt
         
         if 'no' in self.cfg.get("return_type"):
-            noisy_data = add_gaussian_noise(final_kspace,noise_level=0.02)
+            noisy_data = add_gaussian_noise(final_kspace,noise_level=self.cfg['wei_no']['noise_level'])
             k_field_spec = torch.fft.fftshift(torch.fft.fft(noisy_data, dim=1), dim=1)
             result["no"] = fft_kspace_to_xspace(fft_kspace_to_xspace(k_field_spec, 2), 3)
             result["no"] = torch.abs(result["no"]) / torch.max(torch.abs(result["no"]))
@@ -177,7 +177,7 @@ class Simulation:
             result["wei"] = fft_kspace_to_xspace(fft_kspace_to_xspace(k_field_spec, 2), 3)
             result["wei"] = torch.abs(result["wei"]) / torch.max(torch.abs(result["wei"]))
             if 'wei_no' in self.cfg.get("return_type"):
-                weighted_noisy_data = add_gaussian_noise(weighted_data,noise_level=0.02)
+                weighted_noisy_data = add_gaussian_noise(weighted_data,noise_level=self.cfg['wei_no']['noise_level'])
                 k_field_spec = torch.fft.fftshift(torch.fft.fft(weighted_noisy_data, dim=1), dim=1)
                 result["wei_no"] = fft_kspace_to_xspace(fft_kspace_to_xspace(k_field_spec, 2), 3)
                 result["wei_no"] = torch.abs(result["wei_no"]) / torch.max(torch.abs(result["wei_no"]))
@@ -289,7 +289,7 @@ class BatchSimulation(Simulation):
             result["gt"] = gt
             
         if 'no' in self.cfg.get("return_type"):
-            noisy_data = add_gaussian_noise(final_kspace, noise_level=0.02)
+            noisy_data = add_gaussian_noise(final_kspace, noise_level=self.cfg['wei_no']['noise_level'])
             k_field_spec = torch.fft.fftshift(torch.fft.fft(noisy_data, dim=2), dim=2)
             result["no"] = fft_kspace_to_xspace_3d_batch(fft_kspace_to_xspace_3d_batch(k_field_spec, dim=-1), dim=-2)
             result["no"] = result["no"].abs() / result["no"].abs().amax(dim=(-4, -3, -2, -1), keepdim=True)
@@ -303,7 +303,7 @@ class BatchSimulation(Simulation):
             result["wei"] = result["wei"].abs() / result["wei"].abs().amax(dim=(-4, -3, -2, -1), keepdim=True)
             
             if 'wei_no' in self.cfg.get("return_type"):
-                weighted_noisy_data = add_gaussian_noise(weighted_data, noise_level=0.02)
+                weighted_noisy_data = add_gaussian_noise(weighted_data, noise_level=self.cfg['wei_no']['noise_level'])
                 k_field_spec = torch.fft.fftshift(torch.fft.fft(weighted_noisy_data, dim=2), dim=2)
                 result["wei_no"] = fft_kspace_to_xspace_3d_batch(fft_kspace_to_xspace_3d_batch(k_field_spec, dim=-1), dim=-2)
                 result["wei_no"] = result["wei_no"].abs() / result["wei_no"].abs().amax(dim=(-4, -3, -2, -1), keepdim=True)
