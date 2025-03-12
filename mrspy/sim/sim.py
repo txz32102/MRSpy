@@ -48,9 +48,9 @@ class Simulation:
         self.chemical_dce_curve = load_mrs_mat(data_path, output_type="tensor", dtype=self.torch_dtype, device=self.device)
 
         # Vectorize operations for speed
-        lac_dy = torch.cat([
-            self.chemical_dce_curve[0, :20] * 2,
-            self.chemical_dce_curve[0, 20:44:2] * 2
+        water_dy = torch.cat([
+            self.chemical_dce_curve[2, :56:2],
+            self.chemical_dce_curve[2, 56:60]
         ], dim=0)
         
         glu_dy = torch.cat([
@@ -58,9 +58,9 @@ class Simulation:
             self.chemical_dce_curve[1, 16:48:2] * 4
         ], dim=0)
         
-        water_dy = torch.cat([
-            self.chemical_dce_curve[2, :56:2],
-            self.chemical_dce_curve[2, 56:60]
+        lac_dy = torch.cat([
+            self.chemical_dce_curve[0, :20] * 2,
+            self.chemical_dce_curve[0, 20:44:2] * 2
         ], dim=0)
 
         self.chemical_dce_curve_new = torch.stack((water_dy, glu_dy, lac_dy), dim=0).to(self.device)
