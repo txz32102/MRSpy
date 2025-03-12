@@ -104,15 +104,20 @@ class DrawChar:
         """Convert the image to a NumPy array"""
         return np.array(self.image)
 
-    def to_tensor(self, device='cpu'):
+    def to_tensor(self, device='cpu', normalize=True):
         """Convert the image to a PyTorch tensor"""
         img_np = np.array(self.image)
         img_tensor = torch.from_numpy(img_np).float()
+        
         if len(img_tensor.shape) == 2:
             img_tensor = img_tensor
         else:
-            img_tensor = img_tensor.permute(2, 0, 1)
+            img_tensor = img_tensor.permute(2, 0, 1)  # Change to (C,H,W) format
         
+        if normalize:
+            # Normalize to [0, 1] range from [0, 255]
+            img_tensor = img_tensor / 255.0
+            
         return img_tensor.to(device)
 
     def save(self, filepath):
