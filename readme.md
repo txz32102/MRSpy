@@ -3,12 +3,9 @@
 Basic usage of GPU
 
 ```python
+from mrspy.plot import SpecPlotter, plot_chemicalshift_image
+from mrspy.sim.sim import Simulation
 from mrspy.util import load_mrs_mat
-from mrspy.sim import Simulation
-import os
-from scipy.io import savemat
-import numpy as np
-import time
 
 demo_folder = "/home/data1/data/dmi_si_hum/data_metimg/row0_IXI255-HH-1882-T1"
 
@@ -24,172 +21,17 @@ lac_img = os.path.join(demo_folder, "LacImag.mat")
 lac_img = load_mrs_mat(lac_img, output_type="tensor")
 lac_img = lac_img.double()
 
-cfg = {
-    "curve": "default",
-    "device": "cuda:0",
-    "return_type": {
-        "gt",
-        "no",
-        "wei",
-        "wei_no"},
-    "wei_no": {
-        "noise_level": 0.02
-    },
-    "no": {
-        "noise_level": 0.02
-    },
-    "wei": {
-        "average": 263
-    },
-    "return_dict" : True
-}
+torch.stack([water_img.unsqueeze(0), glu_img.unsqueeze(0), lac_img.unsqueeze(0)], dim=1).shape
 
-start_time = time.time()
-target_size = 32
-sim = Simulation(target_size=target_size, cfg=cfg)
+sim = Simulation()
+res = sim.simulation(torch.stack([water_img.unsqueeze(0), glu_img.unsqueeze(0), lac_img.unsqueeze(0)], dim=1))
 
-# we will have res["gt"], res["no"], res["wei"], res["wei_no], each of shape 32, 120, 32, 32
-res = sim.simulation(water_img=water_img, glu_img=glu_img, lac_img=lac_img)
-end_time = time.time()
-print(f"Total time taken by GPU: {end_time - start_time:.2f} seconds")
+log_dir = "temp"
 
-saved_dir = "/home/data1/musong/workspace/2025/1/1-22/log/mat_data"
-os.makedirs(saved_dir, exist_ok=True)
-
-for key, value in res.items():
-    value = np.array(value.detach().cpu())
-    value_float16 = value.astype(np.float16)
-    savemat(f"{saved_dir}/{key}.mat", {key: value_float16})
-```
-
-Basic usage of CPU
-
-```python
-from mrspy.util import load_mrs_mat
-from mrspy.sim import Simulation
-import os
-from scipy.io import savemat
-import numpy as np
-import time
-
-demo_folder = "/home/data1/data/dmi_si_hum/data_metimg/row0_IXI255-HH-1882-T1"
-
-water_img = os.path.join(demo_folder, "WaterImag.mat")
-water_img = load_mrs_mat(water_img, output_type="tensor")
-water_img = water_img.double()
-
-glu_img = os.path.join(demo_folder, "GluImag.mat")
-glu_img = load_mrs_mat(glu_img, output_type="tensor")
-glu_img = glu_img.double()
-
-lac_img = os.path.join(demo_folder, "LacImag.mat")
-lac_img = load_mrs_mat(lac_img, output_type="tensor")
-lac_img = lac_img.double()
-
-cfg = {
-    "curve": "default",
-    "device": "cpu",
-    "return_type": {
-        "gt",
-        "no",
-        "wei",
-        "wei_no"},
-    "wei_no": {
-        "noise_level": 0.02
-    },
-    "no": {
-        "noise_level": 0.02
-    },
-    "wei": {
-        "average": 263
-    },
-    "return_dict" : True
-}
-
-start_time = time.time()
-target_size = 32
-sim = Simulation(target_size=target_size, cfg=cfg)
-
-# we will have res["gt"], res["no"], res["wei"], res["wei_no], each of shape 32, 120, 32, 32
-res = sim.simulation(water_img=water_img, glu_img=glu_img, lac_img=lac_img)
-end_time = time.time()
-print(f"Total time taken by CPU: {end_time - start_time:.2f} seconds")
-
-saved_dir = "/home/data1/musong/workspace/2025/1/1-22/log/mat_data"
-os.makedirs(saved_dir, exist_ok=True)
-
-for key, value in res.items():
-    value = np.array(value.detach().cpu())
-    value_float16 = value.astype(np.float16)
-    savemat(f"{saved_dir}/{key}.mat", {key: value_float16})
-```
-
-## batch processing with GPU
-
-```python
-from mrspy.util import load_mrs_mat
-from mrspy.sim import BatchSimulation
-import os
-from scipy.io import savemat
-import numpy as np
-import time
-
-demo_folder = "/home/data1/data/dmi_si_hum/data_metimg/row0_IXI255-HH-1882-T1"
-
-water_img = os.path.join(demo_folder, "WaterImag.mat")
-water_img = load_mrs_mat(water_img, output_type="tensor")
-water_img = water_img.double()
-
-glu_img = os.path.join(demo_folder, "GluImag.mat")
-glu_img = load_mrs_mat(glu_img, output_type="tensor")
-glu_img = glu_img.double()
-
-lac_img = os.path.join(demo_folder, "LacImag.mat")
-lac_img = load_mrs_mat(lac_img, output_type="tensor")
-lac_img = lac_img.double()
-
-batch_size = 4
-
-water_img = water_img.unsqueeze(0).repeat(batch_size, 1, 1)
-glu_img = glu_img.unsqueeze(0).repeat(batch_size, 1, 1)
-lac_img = lac_img.unsqueeze(0).repeat(batch_size, 1, 1)
-
-cfg = {
-    "curve": "default",
-    "device": "cuda:0",
-    "return_type": {
-        "gt",
-        "no",
-        "wei",
-        "wei_no"},
-    "wei_no": {
-        "noise_level": 0.02
-    },
-    "no": {
-        "noise_level": 0.02
-    },
-    "wei": {
-        "average": 263
-    },
-    "return_dict" : True
-}
-
-start_time = time.time()
-target_size = 32
-sim = BatchSimulation(target_size=target_size, cfg=cfg)
-
-res = sim.simulation(water_img=water_img, glu_img=glu_img, lac_img=lac_img)
-end_time = time.time()
-print(f"Total time taken by GPU: {end_time - start_time:.2f} seconds")
-
-saved_dir = "/home/data1/musong/workspace/2025/2/2-14/mat_data"
-os.makedirs(saved_dir, exist_ok=True)
-
-for key, value in res.items():
-    value = np.array(value.detach().cpu())
-    single_batch = value[0, ...]
-    value_float16 = single_batch.astype(np.float16)
-    # savemat(f"{saved_dir}/{key}_single_batch.mat", {key: value_float16})
+plot_chemicalshift_image(res['gt'].cpu()[0], chemicalshift=[31, 33], path=f'{log_dir}/test_gt')
+SpecPlotter.from_tensor(res['gt'].cpu()[0],).spec_plot(path=f"{log_dir}/gt_spec_python.png", plot_all=True, dpi=100)
+plot_chemicalshift_image(res['wei_no'].cpu()[0], chemicalshift=[31, 33], path=f'{log_dir}/test_wei_no')
+SpecPlotter.from_tensor(res['wei_no'].cpu()[0],).spec_plot(path=f"{log_dir}/wei_no_spec_python.png", plot_all=True, dpi=100)
 ```
 
 ## datapipeline usage
