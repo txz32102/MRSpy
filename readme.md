@@ -230,7 +230,7 @@ pipeline.save(output_path="/home/data1/musong/workspace/2025/2/2-13/temp", outpu
 ## install
 
 ```bash
-pip install git+https://github.com/txz32102/MRSpy.git@0.3.2
+pip install git+https://github.com/txz32102/MRSpy.git@0.3.3
 ```
 
 Visualization results for `simulated.mat` can be viewed using MATLAB, available in the `demo` folder.
