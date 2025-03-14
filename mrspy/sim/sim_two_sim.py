@@ -299,31 +299,64 @@ class BatchSimulation(Simulation):
         # Spectral FFT and processing
         k_field_spec = torch.fft.fftshift(torch.fft.fft(final_kspace, dim=2), dim=2)
         gt = fft_kspace_to_xspace_3d_batch(fft_kspace_to_xspace_3d_batch(k_field_spec, dim=-1), dim=-2)
-        gt = gt.abs() / gt.abs().amax(dim=(-4, -3, -2, -1), keepdim=True)
 
-        # Result handling with batch dimension
-        result = {}
-        if 'gt' in self.cfg.get("return_type"):
-            result["gt"] = gt
-            
+        # Helper function to process complex data based on the abs flag
+        def process_complex_data(data, abs_flag, device):
+            if abs_flag:
+                # Take absolute value and normalize
+                processed = data.abs()
+                processed = processed / processed.amax(dim=(-4, -3, -2, -1), keepdim=True)
+            else:
+                # Split into real and imaginary parts
+                real = data.real
+                imag = data.imag
+                # Compute normalization factor from real part's max absolute value
+                norm_factor = real.abs().amax(dim=(-4, -3, -2, -1), keepdim=True)
+                norm_factor = torch.where(norm_factor == 0, torch.tensor(1.0, device=device), norm_factor)
+                # Normalize both parts
+                real = real / norm_factor
+                imag = imag / norm_factor
+                # Stack them together (B, 2, T, L, W, H)
+                processed = torch.stack([real, imag], dim=1)
+            return processed
+
+        # Main processing logic
+        complex_data = {}
+
+        # Compute ground truth (assuming gt is already computed as complex data)
+        complex_data["gt"] = gt
+
+        # Compute noisy data if required
         if 'no' in self.cfg.get("return_type"):
-            noisy_data = add_gaussian_noise(final_kspace, noise_level=self.cfg['wei_no']['noise_level'])
+            noisy_data = final_kspace.clone()
+            # Add complex noise (consistent for both abs and else cases)
+            noise = torch.randn_like(noisy_data) * self.cfg['wei_no']['noise_level']
+            noisy_data = noisy_data + noise
             k_field_spec = torch.fft.fftshift(torch.fft.fft(noisy_data, dim=2), dim=2)
-            result["no"] = fft_kspace_to_xspace_3d_batch(fft_kspace_to_xspace_3d_batch(k_field_spec, dim=-1), dim=-2)
-            result["no"] = result["no"].abs() / result["no"].abs().amax(dim=(-4, -3, -2, -1), keepdim=True)
-            
+            noisy_gt = fft_kspace_to_xspace_3d_batch(fft_kspace_to_xspace_3d_batch(k_field_spec, dim=-1), dim=-2)
+            complex_data["no"] = noisy_gt
+
+        # Compute weighted and weighted noisy data if required
         if 'wei' in self.cfg.get("return_type"):
             average_masks = update_averaging(self.target_size, self.target_size, average=self.cfg['average'])
-            expanded_mask = average_masks.unsqueeze(0).unsqueeze(0).unsqueeze(0)  # (1, 1, 1, H, W)
-            weighted_data = final_kspace * expanded_mask.to(self.device).to(self.torch_dtype)
+            expanded_mask = average_masks.unsqueeze(0).unsqueeze(0).unsqueeze(0).to(self.device).to(self.torch_dtype)
+            weighted_data = final_kspace * expanded_mask
             k_field_spec = torch.fft.fftshift(torch.fft.fft(weighted_data, dim=2), dim=2)
-            result["wei"] = fft_kspace_to_xspace_3d_batch(fft_kspace_to_xspace_3d_batch(k_field_spec, dim=-1), dim=-2)
-            result["wei"] = result["wei"].abs() / result["wei"].abs().amax(dim=(-4, -3, -2, -1), keepdim=True)
-            
+            wei_gt = fft_kspace_to_xspace_3d_batch(fft_kspace_to_xspace_3d_batch(k_field_spec, dim=-1), dim=-2)
+            complex_data["wei"] = wei_gt
+
             if 'wei_no' in self.cfg.get("return_type"):
-                weighted_noisy_data = add_gaussian_noise(weighted_data, noise_level=self.cfg['wei_no']['noise_level'])
+                weighted_noisy_data = weighted_data.clone()
+                # Add complex noise
+                noise = torch.randn_like(weighted_noisy_data) * self.cfg['wei_no']['noise_level']
+                weighted_noisy_data = weighted_noisy_data + noise
                 k_field_spec = torch.fft.fftshift(torch.fft.fft(weighted_noisy_data, dim=2), dim=2)
-                result["wei_no"] = fft_kspace_to_xspace_3d_batch(fft_kspace_to_xspace_3d_batch(k_field_spec, dim=-1), dim=-2)
-                result["wei_no"] = result["wei_no"].abs() / result["wei_no"].abs().amax(dim=(-4, -3, -2, -1), keepdim=True)
+                wei_no_gt = fft_kspace_to_xspace_3d_batch(fft_kspace_to_xspace_3d_batch(k_field_spec, dim=-1), dim=-2)
+                complex_data["wei_no"] = wei_no_gt
+
+        # Process all complex data and store results
+        result = {}
+        for key in complex_data:
+            result[key] = process_complex_data(complex_data[key], abs, gt.device)
 
         return result
