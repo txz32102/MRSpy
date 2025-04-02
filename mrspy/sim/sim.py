@@ -120,13 +120,12 @@ class Simulation():
         
         # Load dynamic curves
         curve = self.cfg.get("curve")
-        if curve == "default" or curve is None:
-            self.load_default_curve()  # Loads curves for 3 components
+                
+        if isinstance(curve, str):
+            if(curve == "default" or curve is None):
+                self.load_default_curve()  # Loads curves for 3 components
         else:
-            if isinstance(curve, str):
-                self.load_curve(curve)
-            else:
-                self.chemical_dce_curve = torch.tensor(curve, dtype=self.torch_dtype, device=self.device)
+            self.chemical_dce_curve = torch.tensor(curve, dtype=self.torch_dtype, device=self.device)
         
         # Generate density maps
         self.generate_chemical_density_map(components_resized)
@@ -150,8 +149,8 @@ class Simulation():
         else:
             if N == 3:
                 t2 = torch.tensor([12, 32, 61], dtype=self.torch_dtype, device=self.device) / 1000
-            else:
-                raise ValueError("t2 must be provided in cfg for N != 3")
+            elif N == 2:
+                t2 = torch.tensor([12, 32], dtype=self.torch_dtype, device=self.device) / 1000
         
         if "bssfp_signal" in self.cfg:
             bssfp_signal = torch.tensor(self.cfg["bssfp_signal"], dtype=self.torch_dtype, device=self.device)
@@ -159,8 +158,8 @@ class Simulation():
         else:
             if N == 3:
                 bssfp_signal = torch.tensor([0.0403, 0.3332, 0.218], dtype=self.torch_dtype, device=self.device)
-            else:
-                raise ValueError("bssfp_signal must be provided in cfg for N != 3")
+            elif N == 2:
+                bssfp_signal = torch.tensor([0.0403, 0.3332], dtype=self.torch_dtype, device=self.device)
         
         # Simulation setup
         sw_spec = 4065
@@ -198,12 +197,11 @@ class Simulation():
                 processed = data.abs()
                 processed = processed / processed.amax(dim=(-4, -3, -2, -1), keepdim=True)
             else:
-                real = data.real
-                imag = data.imag
-                norm_factor = real.abs().amax(dim=(-4, -3, -2, -1), keepdim=True)
+                magnitude = torch.sqrt(data.real**2 + data.imag**2)
+                norm_factor = magnitude.amax(dim=(-4, -3, -2, -1), keepdim=True)
                 norm_factor = torch.where(norm_factor == 0, torch.tensor(1.0, device=device), norm_factor)
-                real = real / norm_factor
-                imag = imag / norm_factor
+                real = data.real / norm_factor
+                imag = data.imag / norm_factor
                 processed = torch.stack([real, imag], dim=1)
             return processed
         
@@ -211,7 +209,7 @@ class Simulation():
         
         if 'no' in self.cfg.get("return_type", []):
             noisy_data = final_kspace.clone()
-            noise = torch.randn_like(noisy_data) * self.cfg.get('wei_no', {}).get('noise_level')
+            noise = torch.randn_like(noisy_data) * self.cfg.get('wei_no', {}).get('noise_level') * torch.abs(noisy_data).max()
             noisy_data += noise
             k_field_spec = torch.fft.fftshift(torch.fft.fft(noisy_data, dim=2), dim=2)
             complex_data["no"] = fft_kspace_to_xspace_3d_batch(fft_kspace_to_xspace_3d_batch(k_field_spec, dim=-1), dim=-2)
@@ -225,7 +223,7 @@ class Simulation():
             
             if 'wei_no' in self.cfg.get("return_type", []):
                 weighted_noisy_data = weighted_data.clone()
-                noise = torch.randn_like(weighted_noisy_data) * self.cfg.get('wei_no', {}).get('noise_level')
+                noise = torch.randn_like(weighted_noisy_data) * self.cfg.get('wei_no', {}).get('noise_level') * torch.abs(weighted_noisy_data).max()
                 weighted_noisy_data += noise
                 k_field_spec = torch.fft.fftshift(torch.fft.fft(weighted_noisy_data, dim=2), dim=2)
                 complex_data["wei_no"] = fft_kspace_to_xspace_3d_batch(fft_kspace_to_xspace_3d_batch(k_field_spec, dim=-1), dim=-2)
