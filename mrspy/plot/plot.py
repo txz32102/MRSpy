@@ -60,7 +60,7 @@ class SpecPlotter:
     
     def spec_plot(self, 
                 idx: int = 0, 
-                path=None, 
+                save_path=None, 
                 plot_all=False, 
                 xy=None, 
                 show_xy: bool = True,
@@ -69,6 +69,7 @@ class SpecPlotter:
                 title=None, xlabel=None, 
                 ylabel=None, 
                 xticks=None, 
+                display: bool = True,
                 **kwargs):
 
         data_array = self.data
@@ -136,9 +137,10 @@ class SpecPlotter:
                 fig.delaxes(axs[i])
 
             plt.tight_layout()
-            if path:
-                plt.savefig(path, **kwargs)
-            plt.show()
+            if save_path:
+                plt.savefig(save_path, **kwargs)
+            if(display):
+                plt.show()
 
         else:  # plot_all is False, plot a single subplot
             temp_data = data_array[idx]
@@ -176,9 +178,10 @@ class SpecPlotter:
                 ax.axis('off')
 
             plt.tight_layout()
-            if path:
-                plt.savefig(path, **kwargs)
-            plt.show()
+            if save_path:
+                plt.savefig(save_path, **kwargs)
+            if(display):
+                plt.show()
             
 class TensorComparePlotter:
     def __init__(self, tensor1=None, tensor2=None):
@@ -264,7 +267,7 @@ class TensorComparePlotter:
         plt.show()
          
 def plot_chemicalshift_image(data: np.ndarray, chemicalshift: List[int] = [67, 61, 49], 
-                             cbar: bool = False, cmap: str = 'hot', path="./", dpi=600, 
+                             cbar: bool = False, cmap: str = 'hot', save_path="./", dpi=600, 
                              order: List[str] = None, normalize_range: bool = True, no_gap: bool = True):
     """
     Plots images for chemical shifts from the provided tensor data.
@@ -286,7 +289,7 @@ def plot_chemicalshift_image(data: np.ndarray, chemicalshift: List[int] = [67, 6
     Saves images named `gt_<chemical shift index>.jpg` or as specified by `order`.
     """
 
-    os.makedirs(path, exist_ok=True)
+    os.makedirs(save_path, exist_ok=True)
     data = np.array(data)  # Ensure data is a NumPy array
 
     for ichem, shift in enumerate(chemicalshift):
@@ -324,18 +327,19 @@ def plot_chemicalshift_image(data: np.ndarray, chemicalshift: List[int] = [67, 6
             plt.tight_layout()
 
         if order is not None:
-            plt.savefig(f'{path}/{order[ichem]}.jpg', dpi=dpi)
+            plt.savefig(f'{save_path}/{order[ichem]}.jpg', dpi=dpi)
         else:
-            plt.savefig(f'{path}/plot_{ichem}.jpg', dpi=dpi)
+            plt.savefig(f'{save_path}/plot_{ichem}.jpg', dpi=dpi)
         plt.close(fig)
              
 def plot(
     data: Union[np.ndarray, torch.Tensor], 
     axis: Optional[str] = 'none',  # Default to 'none'
-    path: Optional[str] = None, 
+    save_path: Optional[str] = None, 
     dpi: int = 100,
     cbar: bool = False,  # Default to False
-    cmap: str = 'gray'  # Default to 'gray'
+    cmap: str = 'gray',  # Default to 'gray'
+    display: bool = True
 ) -> None:
     """
     Plots a numpy array or a torch tensor as an image.
@@ -343,7 +347,7 @@ def plot(
     Parameters:
     - data: numpy array or torch tensor (CPU/GPU, with or without gradients), shape (w, h) or (w, h, c)
     - axis: 'none' to hide axes, any other value to show them (default: 'none')
-    - path: optional path to save the figure (default: None)
+    - save_path: optional save_path to save the figure (default: None)
     - dpi: resolution of the saved figure (default: 100)
     - cbar: whether to show a colorbar (default: False, only applies to grayscale images)
     - cmap: colormap to use (default: 'gray')
@@ -373,22 +377,22 @@ def plot(
     else:
         plt.axis('on')
 
-    if path:
-        plt.savefig(path, dpi=dpi, bbox_inches='tight', pad_inches=0)
-    else:
+    if save_path:
+        plt.savefig(save_path, dpi=dpi, bbox_inches='tight', pad_inches=0)
+        plt.close()
+    if(display):
         plt.show()
-    
-    plt.close()
-
 
 def plot_n(
     data_list: List[Union[np.ndarray, torch.Tensor]], 
-    axis: Optional[str] = 'none',  # 'none' to hide axes, any other value to show them
-    path: Optional[str] = None, 
+    axis: Optional[str] = 'none',
+    save_path: Optional[str] = None,
     dpi: int = 100,
-    cmap: str = 'gray',  # Colormap for the images
-    cbar: bool = False,  # If True, adds a colorbar to each subplot
-    normalize_range: bool = False,  # If True, normalizes the color scale across all data
+    cmap: str = 'gray',
+    cbar: bool = False,
+    normalize_range: bool = False,
+    display: bool = True,
+    no_gap: bool = True
 ) -> None:
     """
     Plots a list of numpy arrays or torch tensors as grayscale images in a 1xn subplot layout.
@@ -397,17 +401,23 @@ def plot_n(
     - data_list: List of numpy arrays or torch tensors (CPU/GPU, with or without gradients), 
                  each with shape (w, h) or (w, h, 1)
     - axis: 'none' to hide axes, any other value to show them (default: 'none')
-    - path: Optional path to save the figure (default: None)
+    - save_path: Optional path to save the figure (default: None)
     - dpi: Resolution of the saved figure (default: 100)
     - cmap: Colormap to use for the images (default: 'gray')
     - cbar: If True, adds a colorbar to each subplot (default: False)
     - normalize_range: If True, normalizes the color scale across all data (default: False)
+    - display: If True, displays the plot (default: True)
+    - no_gap: If True, removes gaps between subplots (default: True)
     """
     # Determine the number of subplots
     num_plots = len(data_list)
     
     # Create a figure with a 1xn subplot layout
-    fig, axes = plt.subplots(1, num_plots, figsize=(num_plots * 3, 3))  # Adjust figsize as needed
+    fig, axes = plt.subplots(1, num_plots, figsize=(num_plots * 3, 3))
+
+    # Remove gaps between subplots if no_gap is True
+    if no_gap:
+        plt.subplots_adjust(wspace=0, hspace=0)
 
     # Determine the global min and max if normalization is enabled
     if normalize_range:
@@ -420,16 +430,16 @@ def plot_n(
     for i, data in enumerate(data_list):
         # Convert torch tensor to numpy array if necessary
         if isinstance(data, torch.Tensor):
-            data = data.detach().cpu().numpy()  # Move to CPU and detach if necessary
+            data = data.detach().cpu().numpy()
         
         # Ensure the data is 2D for grayscale plotting
         if data.ndim == 3 and data.shape[-1] == 1:
-            data = data[..., 0]  # Remove the single channel dimension
+            data = data[..., 0]
         elif data.ndim != 2:
             raise ValueError("Each input data must have shape (w, h) or (w, h, 1)")
 
         # Plot the data on the corresponding subplot
-        ax = axes[i] if num_plots > 1 else axes  # Handle single subplot case
+        ax = axes[i] if num_plots > 1 else axes
         im = ax.imshow(data, cmap=cmap, vmin=vmin, vmax=vmax)
         
         # Handle axis visibility
@@ -443,14 +453,14 @@ def plot_n(
             fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
 
     # Adjust layout and save/show the figure
-    plt.tight_layout()
-    if path:
-        os.makedirs(os.path.dirname(path), exist_ok=True)  # Ensure the directory exists
-        plt.savefig(path, dpi=dpi, bbox_inches='tight', pad_inches=0)
-    else:
+    if not no_gap:  # Only use tight_layout if no_gap is False
+        plt.tight_layout()
+    if save_path:
+        os.makedirs(os.path.dirname(save_path), exist_ok=True)
+        plt.savefig(save_path, dpi=dpi, bbox_inches='tight', pad_inches=0 if no_gap else 0.1)
+        plt.close()
+    if display:
         plt.show()
-    
-    plt.close()
     
 def plot_3d_array(data: Union[np.ndarray, torch.Tensor], 
                   path: str = None, 
@@ -459,7 +469,8 @@ def plot_3d_array(data: Union[np.ndarray, torch.Tensor],
                   cbar: bool = False, 
                   cmap: str = 'hot', 
                   show_xy: bool = False, 
-                  normalize_range: bool = False):
+                  normalize_range: bool = False,
+                  display: bool = True):
     """
     Plots a 3D array or tensor of shape (b, w, h) as a 1 * b subplot.
 
@@ -512,11 +523,9 @@ def plot_3d_array(data: Union[np.ndarray, torch.Tensor],
     if save_path:
         plt.savefig(save_path, dpi=dpi)
         print(f"Image saved to {save_path}")
-    else:
-        plt.show()
-
-    # Close the figure window
-    plt.close(fig)
+        plt.close()
+    if(display):
+        plt.show()    
 
 def plot_image_grid(
     data: Union[np.ndarray, torch.Tensor],
@@ -525,7 +534,9 @@ def plot_image_grid(
     save_path: Optional[str] = None,
     dpi: int = 300,
     xy: Optional[Tuple[int, int]] = None,
-    normalize_range: bool = False
+    normalize_range: bool = False,
+    display: bool = True,
+    no_gap: bool = True  # New parameter added
 ) -> None:
     """
     Plot a grid of images from a 3D or 4D array (numpy array or PyTorch tensor).
@@ -549,6 +560,8 @@ def plot_image_grid(
         If not provided, the function will automatically determine the grid size.
     - normalize_range: bool (default=False)
         If True, normalizes the color scale across all images in the grid.
+    - no_gap: bool (default=True)
+        If True, removes all gaps between subplots. If False, uses tight_layout for spacing.
     """
     # Convert PyTorch tensor to numpy array if necessary
     if isinstance(data, torch.Tensor):
@@ -602,8 +615,15 @@ def plot_image_grid(
     for i in range(b, m * n):
         axes[i].axis('off')
 
-    # Adjust layout and save figure if needed
-    plt.tight_layout()
+    # Adjust layout based on no_gap parameter
+    if no_gap:
+        plt.subplots_adjust(wspace=0, hspace=0)
+    else:
+        plt.tight_layout()
+
+    # Save figure if needed
     if save_path:
         plt.savefig(save_path, dpi=dpi)
-    plt.show()
+        plt.close()
+    if display:
+        plt.show()
