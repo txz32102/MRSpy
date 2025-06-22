@@ -456,7 +456,6 @@ def plot_n(
     if not no_gap:  # Only use tight_layout if no_gap is False
         plt.tight_layout()
     if save_path:
-        os.makedirs(os.path.dirname(save_path), exist_ok=True)
         plt.savefig(save_path, dpi=dpi, bbox_inches='tight', pad_inches=0 if no_gap else 0.1)
         plt.close()
     if display:
