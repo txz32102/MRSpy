@@ -11,6 +11,30 @@ from mrspy.util import load_mrs_mat
 
 demo_folder = "/home/data1/data/dmi_si_hum/data_metimg/row0_IXI255-HH-1882-T1"
 
+
+cfg = {
+    "curve": "default",
+    "device": "cuda:0",
+    "return_type": {
+        "gt",
+        "no",
+        "wei",
+        "wei_no",
+        "standard_mean",
+        "standard_sum"},
+    "dtype": "float",
+    "wei_no": {
+        "noise_level": 0.2
+    },
+    "no": {
+        "noise_level": 0.2
+    },
+    "wei": {
+        "average": 263
+    },
+    "return_dict" : True
+}
+
 water_img = os.path.join(demo_folder, "WaterImag.mat")
 water_img = load_mrs_mat(water_img, output_type="tensor")
 water_img = water_img.double()
@@ -21,19 +45,28 @@ glu_img = glu_img.double()
 
 lac_img = os.path.join(demo_folder, "LacImag.mat")
 lac_img = load_mrs_mat(lac_img, output_type="tensor")
-lac_img = lac_img.double()
+lac_img = lac_img.double() * 0.3
 
 torch.stack([water_img.unsqueeze(0), glu_img.unsqueeze(0), lac_img.unsqueeze(0)], dim=1).shape
 
-sim = Simulation()
+sim = Simulation(cfg=cfg)
 res = sim.simulation(torch.stack([water_img.unsqueeze(0), glu_img.unsqueeze(0), lac_img.unsqueeze(0)], dim=1))
 
-log_dir = "temp"
+log_dir = "tests/temp"
 
 plot_chemicalshift_image(res['gt'].cpu()[0], chemicalshift=[33, 31, 26], save_path=f'{log_dir}/test_gt', order=['water_33', 'glu_31', 'lac_26'])
-SpecPlotter.from_tensor(res['gt'].cpu()[0],).spec_plot(path=f"{log_dir}/gt_spec_python.png", idx=10, dpi=100, order=['water_33', 'glu_31', 'lac_26'])
-plot_chemicalshift_image(res['wei_no'].cpu()[0], chemicalshift=[33, 31, 26], save_path=f'{log_dir}/test_wei_no')
-SpecPlotter.from_tensor(res['wei_no'].cpu()[0],).spec_plot(path=f"{log_dir}/wei_no_spec_python.png", idx=10, dpi=100)
+plot_chemicalshift_image(res['no'].cpu()[0], chemicalshift=[33, 31, 26], save_path=f'{log_dir}/test_no', order=['water_33', 'glu_31', 'lac_26'])
+plot_chemicalshift_image(res['standard_mean'].cpu()[0], chemicalshift=[33, 31, 26], save_path=f'{log_dir}/test_standard_mean', order=['water_33', 'glu_31', 'lac_26'])
+plot_chemicalshift_image(res['standard_sum'].cpu()[0], chemicalshift=[33, 31, 26], save_path=f'{log_dir}/test_standard_sum', order=['water_33', 'glu_31', 'lac_26'])
+plot_chemicalshift_image(res['wei_no'].cpu()[0], chemicalshift=[33, 31, 26], save_path=f'{log_dir}/test_wei_no', order=['water_33', 'glu_31', 'lac_26'])
+
+
+SpecPlotter.from_tensor(res['gt'].cpu()[0]).spec_plot(save_path=f"{log_dir}/gt_spec_python.png", idx=10, dpi=100)
+SpecPlotter.from_tensor(res['no'].cpu()[0]).spec_plot(save_path=f"{log_dir}/no_spec_python.png", idx=10, dpi=100)
+SpecPlotter.from_tensor(res['wei_no'].cpu()[0]).spec_plot(save_path=f"{log_dir}/wei_no_spec_python.png", idx=10, dpi=100)
+
+SpecPlotter.from_tensor(res['standard_mean'].cpu()[0]).spec_plot(save_path=f"{log_dir}/standard_mean_spec_python.png", idx=10, dpi=100)
+SpecPlotter.from_tensor(res['standard_sum'].cpu()[0]).spec_plot(save_path=f"{log_dir}/standard_sum_spec_python.png", idx=10, dpi=100)
 ```
 
 ## datapipeline usage
