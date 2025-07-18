@@ -3,6 +3,8 @@
 Basic usage of GPU
 
 ```python
+import os
+import torch
 from mrspy.plot import SpecPlotter, plot_chemicalshift_image
 from mrspy.sim.sim import Simulation
 from mrspy.util import load_mrs_mat
@@ -28,10 +30,10 @@ res = sim.simulation(torch.stack([water_img.unsqueeze(0), glu_img.unsqueeze(0), 
 
 log_dir = "temp"
 
-plot_chemicalshift_image(res['gt'].cpu()[0], chemicalshift=[31, 33], path=f'{log_dir}/test_gt')
-SpecPlotter.from_tensor(res['gt'].cpu()[0],).spec_plot(path=f"{log_dir}/gt_spec_python.png", plot_all=True, dpi=100)
-plot_chemicalshift_image(res['wei_no'].cpu()[0], chemicalshift=[31, 33], path=f'{log_dir}/test_wei_no')
-SpecPlotter.from_tensor(res['wei_no'].cpu()[0],).spec_plot(path=f"{log_dir}/wei_no_spec_python.png", plot_all=True, dpi=100)
+plot_chemicalshift_image(res['gt'].cpu()[0], chemicalshift=[33, 31, 26], save_path=f'{log_dir}/test_gt', order=['water_33', 'glu_31', 'lac_26'])
+SpecPlotter.from_tensor(res['gt'].cpu()[0],).spec_plot(path=f"{log_dir}/gt_spec_python.png", idx=10, dpi=100, order=['water_33', 'glu_31', 'lac_26'])
+plot_chemicalshift_image(res['wei_no'].cpu()[0], chemicalshift=[33, 31, 26], save_path=f'{log_dir}/test_wei_no')
+SpecPlotter.from_tensor(res['wei_no'].cpu()[0],).spec_plot(path=f"{log_dir}/wei_no_spec_python.png", idx=10, dpi=100)
 ```
 
 ## datapipeline usage
