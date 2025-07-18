@@ -22,9 +22,7 @@ class Simulation():
                     "gt",
                     "no",
                     "wei",
-                    "wei_no",
-                    "standard_mean",
-                    "standard_sum"},
+                    "wei_no"},
                 "dtype": "float",
                 "wei_no": {
                     "noise_level": 0.02
@@ -189,11 +187,7 @@ class Simulation():
             temp_rxy_acq = fft_xspace_to_kspace_3d_batch(
                 fft_xspace_to_kspace_3d_batch(temp_imag, dim=-2), dim=-1)
             final_kspace += temp_rxy_acq
-        
-        # Post-processing
-        k_field_spec = torch.fft.fftshift(torch.fft.fft(final_kspace, dim=2), dim=2)
-        gt = fft_kspace_to_xspace_3d_batch(fft_kspace_to_xspace_3d_batch(k_field_spec, dim=-1), dim=-2)
-        
+
         def process_complex_data(data, abs_flag, device):
             if abs_flag:
                 processed = data.abs()
@@ -206,6 +200,10 @@ class Simulation():
                 imag = data.imag / norm_factor
                 processed = torch.stack([real, imag], dim=1)
             return processed
+        
+        # Post-processing
+        k_field_spec = torch.fft.fftshift(torch.fft.fft(final_kspace, dim=2), dim=2)
+        gt = fft_kspace_to_xspace_3d_batch(fft_kspace_to_xspace_3d_batch(k_field_spec, dim=-1), dim=-2)
         
         complex_data = {"gt": gt}
         
@@ -224,10 +222,21 @@ class Simulation():
             complex_data["wei"] = fft_kspace_to_xspace_3d_batch(fft_kspace_to_xspace_3d_batch(k_field_spec, dim=-1), dim=-2)
             
             if 'wei_no' in self.cfg.get("return_type", []):
-                weighted_noisy_data = weighted_data.clone()
-                noise = torch.randn_like(weighted_noisy_data) * self.cfg.get('wei_no', {}).get('noise_level') * torch.abs(weighted_noisy_data).max()
-                noise = noise * expanded_mask / expanded_mask.max()
-                weighted_noisy_data += noise
+                noise = torch.randn_like(torch.zeros((final_kspace.shape[0], self.dce_number, self.spec_len, average_list_sum), dtype=torch.float32), device=final_kspace.device) * self.cfg.get('wei_no', {}).get('noise_level') * torch.abs(final_kspace).max()
+                cumsum_AverageList = np.cumsum(average_list)
+                k_field_gause_noise = torch.zeros(final_kspace.shape[0], final_kspace.shape[1], final_kspace.shape[2], final_kspace.shape[3] * final_kspace.shape[4], device=final_kspace.device)
+
+                for i in range(len(cumsum_AverageList)):
+                    if(i == 0):
+                        xxbegin = 0
+                        xxend = cumsum_AverageList[0]
+                    else:
+                        xxbegin = cumsum_AverageList[i-1]
+                        xxend = cumsum_AverageList[i]
+                    temp_noise = noise[:, :, :, xxbegin:xxend]
+                    k_field_gause_noise[:, :, :, i] = torch.sum(temp_noise, dim=-1)
+                k_field_gause_noise = k_field_gause_noise.reshape(k_field_gause_noise.shape[0], k_field_gause_noise.shape[1], k_field_gause_noise.shape[2], self.target_size, self.target_size)
+                weighted_noisy_data = weighted_data + k_field_gause_noise
                 k_field_spec = torch.fft.fftshift(torch.fft.fft(weighted_noisy_data, dim=2), dim=2)
                 complex_data["wei_no"] = fft_kspace_to_xspace_3d_batch(fft_kspace_to_xspace_3d_batch(k_field_spec, dim=-1), dim=-2)
         
@@ -235,10 +244,25 @@ class Simulation():
             average_masks, average_list_sum, average_list = update_averaging(self.target_size, self.target_size, average=self.cfg['average'])
             average_sum = int(average_list_sum / self.target_size / self.target_size)
             # i have got k_field_spec
+            mean_noisy_data =  torch.zeros_like(final_kspace)
             for i in range(average_sum):
-                noisy_data = final_kspace.clone()
-                noise = torch.randn_like(noisy_data) * self.cfg.get('wei_no', {}).get('noise_level') * torch.abs(noisy_data).max()
-                noisy_data += noise
+                noise = torch.randn_like(noisy_data) * self.cfg.get('wei_no', {}).get('noise_level') * torch.abs(final_kspace).max()
+                temp_data = final_kspace + noise
+                mean_noisy_data += temp_data
+            k_field_spec = torch.fft.fftshift(torch.fft.fft(mean_noisy_data / average_sum, dim=2), dim=2)
+            complex_data["standard_mean"] = fft_kspace_to_xspace_3d_batch(fft_kspace_to_xspace_3d_batch(k_field_spec, dim=-1), dim=-2)
+            
+        if 'standard_sum' in self.cfg.get("return_type", []):
+            average_masks, average_list_sum, average_list = update_averaging(self.target_size, self.target_size, average=self.cfg['average'])
+            average_sum = int(average_list_sum / self.target_size / self.target_size)
+            # i have got k_field_spec
+            sum_noisy_data = final_kspace.clone()
+            for i in range(average_sum):
+                noise = torch.randn_like(sum_noisy_data) * self.cfg.get('wei_no', {}).get('noise_level') * torch.abs(final_kspace).max()
+                temp_data = final_kspace + noise
+                sum_noisy_data += temp_data
+            k_field_spec = torch.fft.fftshift(torch.fft.fft(sum_noisy_data, dim=2), dim=2)
+            complex_data["standard_sum"] = fft_kspace_to_xspace_3d_batch(fft_kspace_to_xspace_3d_batch(k_field_spec, dim=-1), dim=-2)
 
         
         result = {key: process_complex_data(data, abs, gt.device) for key, data in complex_data.items()}
